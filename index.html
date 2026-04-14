@@ -71,7 +71,7 @@
 <body>
 
     <div id="chat">
-        <div class="msg ba">OI! Eu sou a Burrice Artificial. O que vamos aprender hoje?</div>
+        <div class="msg ba">OI! Eu sou o Ômega 7. O que vamos aprender hoje?</div>
     </div>
 
     <div id="input-area">
@@ -80,17 +80,14 @@
     </div>
 
     <script>
-    // 1. MANTÉM SUAS CHAVES (Não apague!)
     const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. NOVAS VARIÁVEIS DE MEMÓRIA
     let modoAprender = false;
     let termoPendente = '';
     let conceitoAnteriorId = null; 
 
-    // 3. FUNÇÃO ENVIAR (APERFEIÇOADA)
     async function enviar() {
         const input = document.getElementById('userInput');
         const texto = input.value.trim();
@@ -104,27 +101,45 @@
 
             if (modoAprender) {
                 const novoC = await salvarNovoConhecimento(termoPendente, texto);
-                adicionarMensagem(`Entendi! Gravei mais essa para "${termoPendente}".`, 'ba');
+                
+                // Resposta natural após aprender
+                const falasAprendeu = [
+                    `Entendi! Então ${termoPendente} é isso... legal!`,
+                    `Anotado aqui. Agora já sei o que dizer sobre ${termoPendente}.`,
+                    `Saquei! Vivendo e aprendendo né? Valeu!`
+                ];
+                adicionarMensagem(falasAprendeu[Math.floor(Math.random() * falasAprendeu.length)], 'ba');
+
                 if (conceitoAnteriorId && novoC) {
                     await criarConexaoTeia(conceitoAnteriorId, novoC.id);
                 }
+                
                 modoAprender = false;
                 termoPendente = '';
                 return;
             }
 
-            let { data: conceito } = await _supabase
+            let { data: conceito, error } = await _supabase
                 .from('conceitos')
                 .select('*, respostas(*)')
                 .eq('termo_limpo', termoLimpo)
-                .single();
+                .maybeSingle(); // Usar maybeSingle evita erro se não achar nada
 
             if (!conceito) {
                 modoAprender = true;
                 termoPendente = texto;
-                adicionarMensagem(`Não conheço "${texto}". Como eu respondo?`, 'ba');
+                
+                const falasNaoSabe = [
+                    `Nunca ouvi falar disso... o que significa?`,
+                    `Vish, nem sei. Fala pra mim o que é isso!`,
+                    `Não sei o que dizer sobre isso, me ensina?`,
+                    `Dessa eu não sabia. O que eu deveria responder?`
+                ];
+                adicionarMensagem(falasNaoSabe[Math.floor(Math.random() * falasNaoSabe.length)], 'ba');
             } else {
+                // Atualiza última vez visto
                 await _supabase.from('conceitos').update({ ultima_vez_visto: new Date() }).eq('id', conceito.id);
+
                 if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) {
                     await criarConexaoTeia(conceitoAnteriorId, conceito.id);
                 }
@@ -133,63 +148,74 @@
                 const r = conceito.respostas;
                 const totalVotos = r.reduce((acc, curr) => acc + curr.votos, 0);
 
-                // Lógica para forçar amostragem
-                if (totalVotos < 5 && Math.random() > 0.5) {
+                // Lógica de questionar ou responder
+                if (totalVotos < 5 && Math.random() > 0.4) {
                     modoAprender = true;
                     termoPendente = texto;
                     const melhor = r.sort((a, b) => b.votos - a.votos)[0];
-                    adicionarMensagem(`Eu respondo "${melhor.texto_resposta}", mas quero aprender outro jeito. Como mais respondo?`, 'ba');
+                    
+                    const falasDuvida = [
+                        `Eu ia dizer "${melhor.texto_resposta}", mas você pode me ensinar mais coisas?`,
+                        `Dessa eu já ouvi falar, mas o que você me diria sobre isso agora?`,
+                        `Geralmente eu respondo "${melhor.texto_resposta}", mas tem outro jeito?`
+                    ];
+                    adicionarMensagem(falasDuvida[Math.floor(Math.random() * falasDuvida.length)], 'ba');
                 } else {
                     const melhor = r.sort((a, b) => b.votos - a.votos)[0];
                     adicionarMensagem(melhor.texto_resposta, 'ba');
                 }
             }
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error("Erro no sistema:", err);
+            adicionarMensagem("Opa, deu um branco aqui... tive um erro no banco. Tenta de novo?", 'ba');
+            modoAprender = false; // Reseta o estado para não ficar travado
+        }
     }
 
-    // 4. SALVAR CONHECIMENTO (AGORA COM VOTOS)
     async function salvarNovoConhecimento(pergunta, resposta) {
-        const termoLimpo = pergunta.toLowerCase().replace(/[^\w\s]/gi, '').trim();
-        const { data: nc } = await _supabase
-            .from('conceitos')
-            .upsert({ termo_limpo: termoLimpo, termo_original: pergunta })
-            .select().single();
+        try {
+            const termoLimpo = pergunta.toLowerCase().replace(/[^\w\s]/gi, '').trim();
+            const { data: nc } = await _supabase
+                .from('conceitos')
+                .upsert({ termo_limpo: termoLimpo, termo_original: pergunta })
+                .select().single();
 
-        let { data: respExistente } = await _supabase
-            .from('respostas')
-            .select('*')
-            .eq('conceito_id', nc.id)
-            .eq('texto_resposta', resposta)
-            .single();
+            let { data: respExistente } = await _supabase
+                .from('respostas')
+                .select('*')
+                .eq('conceito_id', nc.id)
+                .eq('texto_resposta', resposta)
+                .maybeSingle();
 
-        if (respExistente) {
-            await _supabase.from('respostas').update({ votos: respExistente.votos + 1 }).eq('id', respExistente.id);
-        } else {
-            await _supabase.from('respostas').insert({ 
-                conceito_id: nc.id, 
-                texto_resposta: resposta,
-                tipo_pensamento: 'humano'
-            });
-        }
-        return nc;
+            if (respExistente) {
+                await _supabase.from('respostas').update({ votos: respExistente.votos + 1 }).eq('id', respExistente.id);
+            } else {
+                await _supabase.from('respostas').insert({ 
+                    conceito_id: nc.id, 
+                    texto_resposta: resposta,
+                    tipo_pensamento: 'humano'
+                });
+            }
+            return nc;
+        } catch (e) { console.error("Erro ao salvar:", e); return null; }
     }
 
-    // 5. CRIAR CONEXÃO (A TEIA DE ARANHA)
     async function criarConexaoTeia(idA, idB) {
-        let { data: link } = await _supabase
-            .from('teia')
-            .select('*')
-            .or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`)
-            .single();
+        try {
+            let { data: link } = await _supabase
+                .from('teia')
+                .select('*')
+                .or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`)
+                .maybeSingle();
 
-        if (link) {
-            await _supabase.from('teia').update({ forca: link.forca + 1 }).eq('id', link.id);
-        } else {
-            await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 });
-        }
+            if (link) {
+                await _supabase.from('teia').update({ forca: link.forca + 1 }).eq('id', link.id);
+            } else {
+                await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 });
+            }
+        } catch (e) { console.error("Erro na teia:", e); }
     }
 
-    // 6. MANTÉM AS FUNÇÕES DE MENSAGEM E EVENTOS
     function adicionarMensagem(txt, autor) {
         const chat = document.getElementById('chat');
         const div = document.createElement('div');
