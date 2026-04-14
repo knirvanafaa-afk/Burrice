@@ -90,7 +90,7 @@
     let termoPendente = '';
     let conceitoAnteriorId = null; 
 
-    // --- FUNÇÃO PRINCIPAL DE ENVIO ---
+    // --- FUNÇÃO PRINCIPAL DE ENVIO (Com Lógica de Probabilidade/Roleta) ---
     async function enviar() {
         const input = document.getElementById('userInput');
         const texto = input.value.trim();
@@ -102,90 +102,72 @@
         try {
             const termoLimpo = texto.toLowerCase().replace(/[^\w\s]/gi, '').trim();
 
-            // LÓGICA 1: Modo Aprendizado (Captura de Resposta)
             if (modoAprender) {
                 const novoC = await salvarNovoConhecimento(termoPendente, texto);
-                
-                const falasAprendeu = [
-                    `Entendi! Então ${termoPendente} é isso... legal!`,
-                    `Anotado aqui. Agora já sei o que dizer sobre ${termoPendente}.`,
-                    `Saquei! Vivendo e aprendendo. Valeu!`
-                ];
+                const falasAprendeu = [`Entendi!`, `Anotado.`, `Saquei!`, `Legal, aprendi.`];
                 adicionarMensagem(falasAprendeu[Math.floor(Math.random() * falasAprendeu.length)], 'ba');
-
-                if (conceitoAnteriorId && novoC) {
-                    await criarConexaoTeia(conceitoAnteriorId, novoC.id);
-                }
                 
+                if (conceitoAnteriorId && novoC) await criarConexaoTeia(conceitoAnteriorId, novoC.id);
                 conceitoAnteriorId = novoC ? novoC.id : null;
                 modoAprender = false;
                 termoPendente = '';
                 return;
             }
 
-            // LÓGICA 2: Busca de Conceito Existente
             let { data: conceito } = await _supabase
                 .from('conceitos')
                 .select('*, respostas(*)')
                 .eq('termo_limpo', termoLimpo)
                 .maybeSingle();
 
-            if (!conceito) {
-                // Se não conhece, entra em modo aprender
+            if (!conceito || !conceito.respostas || conceito.respostas.length === 0) {
                 modoAprender = true;
                 termoPendente = texto;
-                const falasNaoSabe = [
-                    `Nunca ouvi falar disso... o que significa?`,
-                    `Vish, nem sei. Fala pra mim o que é isso!`,
-                    `Não sei o que dizer sobre isso, me ensina?`
-                ];
-                adicionarMensagem(falasNaoSabe[Math.floor(Math.random() * falasNaoSabe.length)], 'ba');
+                adicionarMensagem(`Não sei o que dizer sobre isso, me ensina?`, 'ba');
             } else {
-                // Se conhece, atualiza e tenta conectar na teia
+                // Atualiza última vez visto e conexões da teia
                 await _supabase.from('conceitos').update({ ultima_vez_visto: new Date() }).eq('id', conceito.id);
-
-                if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) {
-                    await criarConexaoTeia(conceitoAnteriorId, conceito.id);
-                }
+                if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) await criarConexaoTeia(conceitoAnteriorId, conceito.id);
                 conceitoAnteriorId = conceito.id;
 
                 const r = conceito.respostas;
+                
+                // --- LÓGICA DE SORTEIO PROPORCIONAL (Pensamento Filosófico vs Matemático) ---
+                // Aqui ele soma os votos (denominador) e sorteia uma resposta baseada na probabilidade
                 const totalVotos = r.reduce((acc, curr) => acc + curr.votos, 0);
+                let numeroSorteado = Math.random() * totalVotos;
+                let respostaEscolhida = r[0];
 
-                // DECISÃO: Responder ou Pedir mais informações (Amostragem Matemática)
-                if (totalVotos < 5 && Math.random() > 0.4) {
+                for (let i = 0; i < r.length; i++) {
+                    if (numeroSorteado < r[i].votos) {
+                        respostaEscolhida = r[i];
+                        break;
+                    }
+                    numeroSorteado -= r[i].votos;
+                }
+
+                // Chance de questionar para expandir o conhecimento (Humano)
+                if (totalVotos < 20 && Math.random() > 0.6) {
                     modoAprender = true;
                     termoPendente = texto;
-                    const melhor = r.sort((a, b) => b.votos - a.votos)[0];
-                    const falasDuvida = [
-                        `Eu ia dizer "${melhor.texto_resposta}", mas você pode me ensinar mais coisas?`,
-                        `Dessa eu já ouvi falar, mas o que você me diria sobre isso agora?`,
-                        `Geralmente eu respondo "${melhor.texto_resposta}", mas tem outro jeito?`
-                    ];
-                    adicionarMensagem(falasDuvida[Math.floor(Math.random() * falasDuvida.length)], 'ba');
+                    adicionarMensagem(`Geralmente eu respondo "${respostaEscolhida.texto_resposta}", mas tem outro jeito?`, 'ba');
                 } else {
-                    // Resposta Direta
-                    const melhor = r.sort((a, b) => b.votos - a.votos)[0];
-                    adicionarMensagem(melhor.texto_resposta, 'ba');
-                    
-                    // Varredura de Insight (Puxar Assunto por Associação)
+                    adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
+                    // Chama a varredura para puxar assunto relacionado
                     puxarAssunto(texto); 
                 }
             }
-        } catch (err) { console.error("Erro no processamento:", err); }
+        } catch (err) { console.error("Erro:", err); }
     }
 
-    // --- FUNÇÃO DE VARREDURA (O CÉREBRO ASSOCIATIVO) ---
+    // --- FUNÇÃO DE VARREDURA (Puxar assunto por palavra-chave) ---
     async function puxarAssunto(textoUsuario) {
-        // Divide a frase e ignora palavras muito curtas
         const palavras = textoUsuario.toLowerCase().replace(/[^\w\s]/gi, '').split(" ");
         const palavrasChave = palavras.filter(p => p.length > 3);
-        
         if (palavrasChave.length === 0) return;
         
         const palavraSorteada = palavrasChave[Math.floor(Math.random() * palavrasChave.length)];
 
-        // Busca no banco algo que contenha essa palavra específica
         let { data: conexoes } = await _supabase
             .from('conceitos')
             .select('*')
@@ -193,40 +175,31 @@
             .limit(5);
 
         if (conexoes && conexoes.length > 0) {
-            // Escolhe um insight aleatório que não seja a própria frase atual
             const sugestao = conexoes.find(c => c.termo_limpo !== textoUsuario.toLowerCase()) || conexoes[0];
-            
             if (sugestao.termo_limpo === textoUsuario.toLowerCase()) return;
 
-            // Delay de "pensamento"
             setTimeout(() => {
-                const falasPuxarAssunto = [
-                    `Aproveitando que você falou disso... ${sugestao.termo_original}`,
+                const falas = [
                     `Sabe o que eu lembrei? ${sugestao.termo_original}`,
-                    `Me veio uma dúvida agora: ${sugestao.termo_original}`,
-                    `Falando nisso, o que você sabe sobre: ${sugestao.termo_original}`
+                    `Me veio uma dúvida: ${sugestao.termo_original}`,
+                    `Aproveitando o gancho... ${sugestao.termo_original}`
                 ];
-                adicionarMensagem(falasPuxarAssunto[Math.floor(Math.random() * falasPuxarAssunto.length)], 'ba');
+                adicionarMensagem(falas[Math.floor(Math.random() * falas.length)], 'ba');
             }, 2500); 
         }
     }
 
-    // --- FUNÇÕES DE PERSISTÊNCIA (BANCO DE DADOS) ---
+    // --- FUNÇÕES DE SUPORTE (Persistência e Teia) ---
     async function salvarNovoConhecimento(pergunta, resposta) {
         try {
             const termoLimpo = pergunta.toLowerCase().replace(/[^\w\s]/gi, '').trim();
-            
-            // Grava o conceito
             const { data: nc } = await _supabase.from('conceitos').upsert({ termo_limpo: termoLimpo, termo_original: pergunta }).select().single();
             
-            // Verifica se a resposta exata já existe
             let { data: respExistente } = await _supabase.from('respostas').select('*').eq('conceito_id', nc.id).eq('texto_resposta', resposta).maybeSingle();
 
             if (respExistente) {
-                // Aumento matemático de voto
                 await _supabase.from('respostas').update({ votos: respExistente.votos + 1 }).eq('id', respExistente.id);
             } else {
-                // Novo registro humano
                 await _supabase.from('respostas').insert({ conceito_id: nc.id, texto_resposta: resposta, tipo_pensamento: 'humano' });
             }
             return nc;
@@ -235,21 +208,12 @@
 
     async function criarConexaoTeia(idA, idB) {
         try {
-            // Procura link existente em qualquer direção (A-B ou B-A)
-            let { data: link } = await _supabase.from('teia')
-                .select('*')
-                .or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`)
-                .maybeSingle();
-
-            if (link) {
-                await _supabase.from('teia').update({ forca: link.forca + 1 }).eq('id', link.id);
-            } else {
-                await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 });
-            }
+            let { data: link } = await _supabase.from('teia').select('*').or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`).maybeSingle();
+            if (link) { await _supabase.from('teia').update({ forca: link.forca + 1 }).eq('id', link.id); }
+            else { await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 }); }
         } catch (e) { }
     }
 
-    // --- INTERFACE ---
     function adicionarMensagem(txt, autor) {
         const chat = document.getElementById('chat');
         const div = document.createElement('div');
@@ -262,5 +226,6 @@
     document.getElementById('btnEnviar').addEventListener('click', enviar);
     document.getElementById('userInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') enviar(); });
 </script>
+
 </body>
 </html>
