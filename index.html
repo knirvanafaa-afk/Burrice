@@ -80,14 +80,17 @@
     </div>
 
     <script>
+    // Configurações de Conexão
     const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // Estados de Memória do Sistema
     let modoAprender = false;
     let termoPendente = '';
     let conceitoAnteriorId = null; 
 
+    // --- FUNÇÃO PRINCIPAL DE ENVIO ---
     async function enviar() {
         const input = document.getElementById('userInput');
         const texto = input.value.trim();
@@ -99,14 +102,14 @@
         try {
             const termoLimpo = texto.toLowerCase().replace(/[^\w\s]/gi, '').trim();
 
+            // LÓGICA 1: Modo Aprendizado (Captura de Resposta)
             if (modoAprender) {
                 const novoC = await salvarNovoConhecimento(termoPendente, texto);
                 
-                // Resposta natural após aprender
                 const falasAprendeu = [
                     `Entendi! Então ${termoPendente} é isso... legal!`,
                     `Anotado aqui. Agora já sei o que dizer sobre ${termoPendente}.`,
-                    `Saquei! Vivendo e aprendendo né? Valeu!`
+                    `Saquei! Vivendo e aprendendo. Valeu!`
                 ];
                 adicionarMensagem(falasAprendeu[Math.floor(Math.random() * falasAprendeu.length)], 'ba');
 
@@ -114,30 +117,31 @@
                     await criarConexaoTeia(conceitoAnteriorId, novoC.id);
                 }
                 
+                conceitoAnteriorId = novoC ? novoC.id : null;
                 modoAprender = false;
                 termoPendente = '';
                 return;
             }
 
-            let { data: conceito, error } = await _supabase
+            // LÓGICA 2: Busca de Conceito Existente
+            let { data: conceito } = await _supabase
                 .from('conceitos')
                 .select('*, respostas(*)')
                 .eq('termo_limpo', termoLimpo)
-                .maybeSingle(); // Usar maybeSingle evita erro se não achar nada
+                .maybeSingle();
 
             if (!conceito) {
+                // Se não conhece, entra em modo aprender
                 modoAprender = true;
                 termoPendente = texto;
-                
                 const falasNaoSabe = [
                     `Nunca ouvi falar disso... o que significa?`,
                     `Vish, nem sei. Fala pra mim o que é isso!`,
-                    `Não sei o que dizer sobre isso, me ensina?`,
-                    `Dessa eu não sabia. O que eu deveria responder?`
+                    `Não sei o que dizer sobre isso, me ensina?`
                 ];
                 adicionarMensagem(falasNaoSabe[Math.floor(Math.random() * falasNaoSabe.length)], 'ba');
             } else {
-                // Atualiza última vez visto
+                // Se conhece, atualiza e tenta conectar na teia
                 await _supabase.from('conceitos').update({ ultima_vez_visto: new Date() }).eq('id', conceito.id);
 
                 if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) {
@@ -148,12 +152,11 @@
                 const r = conceito.respostas;
                 const totalVotos = r.reduce((acc, curr) => acc + curr.votos, 0);
 
-                // Lógica de questionar ou responder
+                // DECISÃO: Responder ou Pedir mais informações (Amostragem Matemática)
                 if (totalVotos < 5 && Math.random() > 0.4) {
                     modoAprender = true;
                     termoPendente = texto;
                     const melhor = r.sort((a, b) => b.votos - a.votos)[0];
-                    
                     const falasDuvida = [
                         `Eu ia dizer "${melhor.texto_resposta}", mas você pode me ensinar mais coisas?`,
                         `Dessa eu já ouvi falar, mas o que você me diria sobre isso agora?`,
@@ -161,49 +164,79 @@
                     ];
                     adicionarMensagem(falasDuvida[Math.floor(Math.random() * falasDuvida.length)], 'ba');
                 } else {
+                    // Resposta Direta
                     const melhor = r.sort((a, b) => b.votos - a.votos)[0];
                     adicionarMensagem(melhor.texto_resposta, 'ba');
+                    
+                    // Varredura de Insight (Puxar Assunto por Associação)
+                    puxarAssunto(texto); 
                 }
             }
-        } catch (err) {
-            console.error("Erro no sistema:", err);
-            adicionarMensagem("Opa, deu um branco aqui... tive um erro no banco. Tenta de novo?", 'ba');
-            modoAprender = false; // Reseta o estado para não ficar travado
+        } catch (err) { console.error("Erro no processamento:", err); }
+    }
+
+    // --- FUNÇÃO DE VARREDURA (O CÉREBRO ASSOCIATIVO) ---
+    async function puxarAssunto(textoUsuario) {
+        // Divide a frase e ignora palavras muito curtas
+        const palavras = textoUsuario.toLowerCase().replace(/[^\w\s]/gi, '').split(" ");
+        const palavrasChave = palavras.filter(p => p.length > 3);
+        
+        if (palavrasChave.length === 0) return;
+        
+        const palavraSorteada = palavrasChave[Math.floor(Math.random() * palavrasChave.length)];
+
+        // Busca no banco algo que contenha essa palavra específica
+        let { data: conexoes } = await _supabase
+            .from('conceitos')
+            .select('*')
+            .ilike('termo_limpo', `%${palavraSorteada}%`)
+            .limit(5);
+
+        if (conexoes && conexoes.length > 0) {
+            // Escolhe um insight aleatório que não seja a própria frase atual
+            const sugestao = conexoes.find(c => c.termo_limpo !== textoUsuario.toLowerCase()) || conexoes[0];
+            
+            if (sugestao.termo_limpo === textoUsuario.toLowerCase()) return;
+
+            // Delay de "pensamento"
+            setTimeout(() => {
+                const falasPuxarAssunto = [
+                    `Aproveitando que você falou disso... ${sugestao.termo_original}`,
+                    `Sabe o que eu lembrei? ${sugestao.termo_original}`,
+                    `Me veio uma dúvida agora: ${sugestao.termo_original}`,
+                    `Falando nisso, o que você sabe sobre: ${sugestao.termo_original}`
+                ];
+                adicionarMensagem(falasPuxarAssunto[Math.floor(Math.random() * falasPuxarAssunto.length)], 'ba');
+            }, 2500); 
         }
     }
 
+    // --- FUNÇÕES DE PERSISTÊNCIA (BANCO DE DADOS) ---
     async function salvarNovoConhecimento(pergunta, resposta) {
         try {
             const termoLimpo = pergunta.toLowerCase().replace(/[^\w\s]/gi, '').trim();
-            const { data: nc } = await _supabase
-                .from('conceitos')
-                .upsert({ termo_limpo: termoLimpo, termo_original: pergunta })
-                .select().single();
-
-            let { data: respExistente } = await _supabase
-                .from('respostas')
-                .select('*')
-                .eq('conceito_id', nc.id)
-                .eq('texto_resposta', resposta)
-                .maybeSingle();
+            
+            // Grava o conceito
+            const { data: nc } = await _supabase.from('conceitos').upsert({ termo_limpo: termoLimpo, termo_original: pergunta }).select().single();
+            
+            // Verifica se a resposta exata já existe
+            let { data: respExistente } = await _supabase.from('respostas').select('*').eq('conceito_id', nc.id).eq('texto_resposta', resposta).maybeSingle();
 
             if (respExistente) {
+                // Aumento matemático de voto
                 await _supabase.from('respostas').update({ votos: respExistente.votos + 1 }).eq('id', respExistente.id);
             } else {
-                await _supabase.from('respostas').insert({ 
-                    conceito_id: nc.id, 
-                    texto_resposta: resposta,
-                    tipo_pensamento: 'humano'
-                });
+                // Novo registro humano
+                await _supabase.from('respostas').insert({ conceito_id: nc.id, texto_resposta: resposta, tipo_pensamento: 'humano' });
             }
             return nc;
-        } catch (e) { console.error("Erro ao salvar:", e); return null; }
+        } catch (e) { return null; }
     }
 
     async function criarConexaoTeia(idA, idB) {
         try {
-            let { data: link } = await _supabase
-                .from('teia')
+            // Procura link existente em qualquer direção (A-B ou B-A)
+            let { data: link } = await _supabase.from('teia')
                 .select('*')
                 .or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`)
                 .maybeSingle();
@@ -213,9 +246,10 @@
             } else {
                 await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 });
             }
-        } catch (e) { console.error("Erro na teia:", e); }
+        } catch (e) { }
     }
 
+    // --- INTERFACE ---
     function adicionarMensagem(txt, autor) {
         const chat = document.getElementById('chat');
         const div = document.createElement('div');
