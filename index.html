@@ -6,18 +6,19 @@
     <title>PROJETO B.A.</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        * { box-sizing: border-box; } /* Garante que padding não aumente o tamanho dos elementos */
+
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             background: #f4f4f4; 
             margin: 0; 
             display: flex; 
             flex-direction: column; 
-            height: 100vh; /* Ocupa a tela toda */
-            overflow: hidden; 
+            height: 90vh; /* Ocupa a altura da tela */
         }
         
         #chat { 
-            flex: 1; 
+            flex: 1; /* Ocupa todo o espaço disponível entre o topo e o rodapé */
             overflow-y: auto; 
             padding: 20px; 
             display: flex;
@@ -29,22 +30,22 @@
         .msg { 
             padding: 12px 18px; 
             border-radius: 15px; 
-            max-width: 80%; 
+            max-width: 85%; 
             word-wrap: break-word;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            font-size: 16px;
         }
         
         .ba { background: #f1f1f1; border-left: 5px solid #cc0000; align-self: flex-start; }
         .user { background: #cc0000; color: #fff; align-self: flex-end; }
         
-        /* FIX DO RODAPÉ */
         #input-area { 
             padding: 15px; 
             background: #fff; 
             border-top: 1px solid #ddd;
             display: flex;
             gap: 10px;
-            padding-bottom: env(safe-area-inset-bottom); /* Para iPhones novos */
+            flex-shrink: 0; /* Impede que a barra de texto diminua de tamanho */
         }
         
         input { 
@@ -79,11 +80,9 @@
     </div>
 
     <script>
-    // CONFIGURAÇÃO DO SUPABASE
     const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
     
-    // Inicialização ÚNICA e correta
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let modoAprender = false;
@@ -114,7 +113,6 @@
                 .eq('termo_limpo', termoLimpo)
                 .single();
 
-            // Se der erro de "não encontrado" ou não existir o conceito
             if (error || !conceito) {
                 modoAprender = true;
                 termoPendente = texto;
@@ -139,25 +137,18 @@
     async function salvarNovoConhecimento(pergunta, resposta) {
         const termoLimpo = pergunta.toLowerCase().replace(/[^\w\s]/gi, '').trim();
         
-        // 1. Salva ou atualiza o conceito
         const { data: nc, error: errC } = await _supabase
             .from('conceitos')
             .upsert({ termo_limpo: termoLimpo, termo_original: pergunta })
             .select().single();
 
-        if (errC) {
-            console.error("Erro ao salvar conceito:", errC);
-            return;
-        }
+        if (errC) { console.error(errC); return; }
 
-        // 2. Insere a resposta
-        const { error: errR } = await _supabase.from('respostas').insert({ 
+        await _supabase.from('respostas').insert({ 
             conceito_id: nc.id, 
             texto_resposta: resposta,
             tipo_pensamento: 'humano'
         });
-        
-        if (errR) console.error("Erro ao salvar resposta:", errR);
     }
 
     function adicionarMensagem(txt, autor) {
@@ -169,7 +160,6 @@
         chat.scrollTop = chat.scrollHeight;
     }
 
-    // Eventos de clique e teclado
     document.getElementById('btnEnviar').addEventListener('click', enviar);
     document.getElementById('userInput').addEventListener('keypress', (e) => { 
         if(e.key === 'Enter') enviar(); 
