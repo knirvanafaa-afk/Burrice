@@ -190,7 +190,7 @@ if (!conceito) {
         if (reflexao) {
             // Se ele achou a palavra dentro de uma resposta, ele usa o conceito pai
             // Ex: Achou "bebida" dentro da resposta de "Café", então ele entende o contexto.
-            adicionarMensagem(`Eu lembro de ter associado "${palavrasChave[palavrasChave.length - 1]}" a algo como "${reflexao.conceitos.termo_original}". Ajuda?`, 'ba');
+            adicionarMensagem(`${palavrasChave[palavrasChave.length - 1]} ${reflexao.conceitos.termo_original}`, 'ba');
             return; // Interrompe para não entrar no modo aprender sem necessidade
         }
     }
