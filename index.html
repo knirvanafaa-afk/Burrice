@@ -173,22 +173,28 @@ let { data: conceito } = await _supabase
     .or(`termo_limpo.eq.'${termoLimpo}', termo_limpo.ilike.%${termoLimpo}%`)
     .maybeSingle();
 
-// 2ª TENTATIVA: Se não achou nada, ele tenta ser mais "esperto" e busca pela primeira palavra
+// 2ª TENTATIVA: AUTO-REFLEXÃO (Busca o termo dentro das respostas já existentes)
 if (!conceito) {
-    const primeiraPalavra = termoLimpo.split(' ')[0];
-    if (primeiraPalavra.length > 3) { // Só faz se a palavra for grande
-        let { data: similares } = await _supabase
-            .from('conceitos')
-            .select('*, respostas(*)')
-            .ilike('termo_limpo', `%${primeiraPalavra}%`)
-            .limit(1);
-        
-        if (similares && similares.length > 0) {
-            conceito = similares[0];
+    const palavras = termoLimpo.split(' ');
+    const palavrasChave = palavras.filter(p => p.length > 3);
+
+    if (palavrasChave.length > 0) {
+        // Ele procura se a palavra (ex: "bebida") aparece em qualquer resposta que ele já deu
+        let { data: reflexao } = await _supabase
+            .from('respostas')
+            .select('*, conceitos(*)')
+            .ilike('texto_resposta', `%${palavrasChave[palavrasChave.length - 1]}%`) 
+            .limit(1)
+            .maybeSingle();
+
+        if (reflexao) {
+            // Se ele achou a palavra dentro de uma resposta, ele usa o conceito pai
+            // Ex: Achou "bebida" dentro da resposta de "Café", então ele entende o contexto.
+            adicionarMensagem(`Eu lembro de ter associado "${palavrasChave[palavrasChave.length - 1]}" a algo como "${reflexao.conceitos.termo_original}". Ajuda?`, 'ba');
+            return; // Interrompe para não entrar no modo aprender sem necessidade
         }
     }
 }
-
             if (!conceito || !conceito.respostas || conceito.respostas.length === 0) {
                 modoAprender = true;
                 termoPendente = texto;
