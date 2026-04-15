@@ -204,27 +204,56 @@ if (!conceito) {
                 if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) await criarConexaoTeia(conceitoAnteriorId, conceito.id);
                 conceitoAnteriorId = conceito.id;
 
+// --- LOGICA ESTATÍSTICA DO JEFFERSON ---
                 const r = conceito.respostas;
-                const totalVotos = r.reduce((acc, curr) => acc + curr.votos, 0);
-                let numeroSorteado = Math.random() * totalVotos;
+                const totalVotosPergunta = r.reduce((acc, curr) => acc + (curr.votos || 1), 0);
+
+                // 1. Encontrar a resposta mais votada para calcular a Confiança
+                const respostaMaisVotada = r.reduce((prev, current) => ((prev.votos || 1) > (current.votos || 1)) ? prev : current);
+                const nivelConfianca = (respostaMaisVotada.votos || 1) / totalVotosPergunta;
+
+                // 2. Classificação do Tipo de Pensamento
+                let tipoPensamento = "";
+                if (nivelConfianca > 0.8) {
+                    tipoPensamento = "MATEMÁTICO"; 
+                } else if (nivelConfianca >= 0.4) {
+                    tipoPensamento = "HUMANO";     
+                } else {
+                    tipoPensamento = "FILOSÓFICO"; 
+                }
+
+                // 3. A ROLETA (Chance para as minorias)
+                let sorteio = Math.random() * totalVotosPergunta;
                 let respostaEscolhida = r[0];
 
                 for (let i = 0; i < r.length; i++) {
-                    if (numeroSorteado < r[i].votos) {
+                    if (sorteio < (r[i].votos || 1)) {
                         respostaEscolhida = r[i];
                         break;
                     }
-                    numeroSorteado -= r[i].votos;
+                    sorteio -= (r[i].votos || 1);
                 }
 
-                if (totalVotos < 20 && Math.random() > 0.6) {
+                // 4. COMPORTAMENTO BASEADO NA CLASSIFICAÇÃO
+                if (tipoPensamento === "MATEMÁTICO") {
+                    adicionarMensagem(`${respostaEscolhida.texto_resposta}. (Certeza: ${Math.round(nivelConfianca*100)}%)`, 'ba');
+                } 
+                else if (tipoPensamento === "HUMANO") {
+                    if (Math.random() > 0.5) {
+                        adicionarMensagem(`Geralmente dizem "${respostaEscolhida.texto_resposta}", mas você tem outro jeito de responder?`, 'ba');
+                        modoAprender = true;
+                        termoPendente = texto;
+                    } else {
+                        adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
+                    }
+                } 
+                else { 
+                    adicionarMensagem(`Ninguém concorda sobre "${texto}"! Uns dizem "${respostaEscolhida.texto_resposta}", outros dizem outra coisa. O que é isso afinal?`, 'ba');
                     modoAprender = true;
                     termoPendente = texto;
-                    adicionarMensagem(sortear(VOCABULARIO.duvidaHumana).replace("Eu ia dizer", `Eu ia dizer "${respostaEscolhida.texto_resposta}"`), 'ba');
-                } else {
-                    adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
-                    puxarAssunto(texto); 
                 }
+                // Mantém o gancho para puxar assunto
+                puxarAssunto(texto);
             }
         } catch (err) { console.error("Erro:", err); }
     }
