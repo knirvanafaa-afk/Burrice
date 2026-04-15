@@ -236,8 +236,9 @@ if (!conceito) {
 
                 // 4. COMPORTAMENTO BASEADO NA CLASSIFICAÇÃO
                 if (tipoPensamento === "MATEMÁTICO") {
-                    adicionarMensagem(`${respostaEscolhida.texto_resposta}. (Certeza: ${Math.round(nivelConfianca*100)}%)`, 'ba');
-                } 
+    // Ele apenas fala a resposta, sem mostrar a porcentagem
+    adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
+}
                 else if (tipoPensamento === "HUMANO") {
                     if (Math.random() > 0.5) {
                         adicionarMensagem(`Geralmente dizem "${respostaEscolhida.texto_resposta}", mas você tem outro jeito de responder?`, 'ba');
