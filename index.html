@@ -279,60 +279,63 @@ if (!conceito) {
         }
     }
 
-async function salvarNoBanco(pergunta, resposta) {
+async function salvarNovoConhecimento(pergunta, resposta) {
     try {
-        const termoLimpo = pergunta.toLowerCase().replace(/[^\w\s]/gi, '').trim();
-        
-        // TESTE 1: O Conceito está sendo criado ou recuperado?
-        const { data: nc, error: erroConceito } = await _supabase
-            .from('conceitos')
-            .upsert({ termo_limpo: termoLimpo, termo_original: pergunta }, { onConflict: 'termo_limpo' })
-            .select()
-            .single();
+        // MANTÉM A LIMPEZA DOS ANTIGOS: Garante que o "Oi" seja achado no banco
+        const termoLimpo = pergunta.toLowerCase().trim().replace(/\s+/g, ' ');
 
-        if (erroConceito || !nc) {
-            console.error("ERRO NO CONCEITO:", erroConceito);
-            return null;
-        }
-        console.log("ID do Conceito:", nc.id);
+        // 1. Garante o conceito usando o termo_limpo (como nos antigos) 
+        // mas enviando o termo_original (pergunta) junto
+        // Localize o upsert de conceitos e deixe exatamente assim:
+const { data: nc } = await _supabase
+    .from('conceitos')
+    .upsert(
+        { termo_limpo: termoLimpo, termo_original: pergunta }, 
+        { onConflict: 'termo_limpo' } // Resolve o erro 23505
+    )
+    .select()
+    .single();
 
-        // TESTE 2: A busca pela resposta existente está funcionando?
-        // Aqui é onde geralmente o erro colateral acontece ao mudar colunas
-        const { data: respExistente, error: erroBusca } = await _supabase
-            .from('respostas')
+// O resto do código (que faz o cálculo de votos e tipo_pensamento) 
+// agora vai voltar a funcionar porque o nc.id será retornado corretamente.
+
+        if (!nc) return null;
+
+        // 2. Busca resposta exata (usando o parâmetro 'resposta' que vem da função)
+        let { data: respExistente } = await _supabase.from('respostas')
             .select('*')
             .eq('conceito_id', nc.id)
             .eq('texto_resposta', resposta.trim())
             .maybeSingle();
 
-        console.log("Resposta já existe?", respExistente ? "SIM, ID: " + respExistente.id : "NÃO");
-
         if (respExistente) {
-            // LÓGICA DE UPDATE (Soma de votos)
-            console.log("Tentando UPDATE...");
-            const { error: erroUpd } = await _supabase
-                .from('respostas')
-                .update({ votos: (respExistente.votos || 0) + 1 })
-                .eq('id', respExistente.id);
-            if (erroUpd) console.error("Erro no Update:", erroUpd);
-        } else {
-            // LÓGICA DE INSERT
-            console.log("Tentando INSERT...");
-            const { error: erroIns } = await _supabase
-                .from('respostas')
-                .insert({ 
-                    conceito_id: nc.id, 
-                    texto_resposta: resposta.trim(), 
-                    votos: 1, 
-                    tipo_pensamento: 'humano' 
-                });
-            if (erroIns) console.error("Erro no Insert:", erroIns);
-        }
+            // Lógica de evolução: soma votos e muda tipo_pensamento
+            let { data: todas } = await _supabase.from('respostas').select('votos').eq('conceito_id', nc.id);
+            const totalVotos = todas.reduce((acc, curr) => acc + (curr.votos || 1), 0) + 1;
+            const novosVotosDaqui = (respExistente.votos || 1) + 1;
+            const confianca = novosVotosDaqui / totalVotos;
 
+            let tipoFinal = 'humano';
+            if (confianca > 0.8) tipoFinal = 'matemático';
+            else if (confianca >= 0.4) tipoFinal = 'humano';
+            else tipoFinal = 'filosófico';
+
+            await _supabase.from('respostas')
+                .update({ votos: novosVotosDaqui, tipo_pensamento: tipoFinal })
+                .eq('id', respExistente.id);
+        } else {
+            // Nova resposta: grava como humano
+            await _supabase.from('respostas').insert({ 
+                conceito_id: nc.id, 
+                texto_resposta: resposta.trim(), 
+                votos: 1, 
+                tipo_pensamento: 'humano' 
+            });
+        }
         return nc;
-    } catch (e) {
-        console.error("Erro catastrófico:", e);
-        return null;
+    } catch (e) { 
+        console.error("Erro ao salvar:", e); 
+        return null; 
     }
 }
     async function criarConexaoTeia(idA, idB) {
