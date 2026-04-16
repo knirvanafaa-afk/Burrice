@@ -1,1 +1,359 @@
-<!DOCTYPE html> <html lang="pt-br"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> <title>PROJETO B.A.</title> <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> <style> * { box-sizing: border-box; } /* Garante que padding não aumente o tamanho dos elementos */ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f4f4; margin: 0; display: flex; flex-direction: column; height: 90vh; /* Ocupa a altura da tela */ } #chat { flex: 1; /* Ocupa todo o espaço disponível entre o topo e o rodapé */ overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #fff; } .msg { padding: 12px 18px; border-radius: 15px; max-width: 85%; word-wrap: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.05); font-size: 16px; } .ba { background: #f1f1f1; border-left: 5px solid #cc0000; align-self: flex-start; } .user { background: #cc0000; color: #fff; align-self: flex-end; } #input-area { padding: 15px; background: #fff; border-top: 1px solid #ddd; display: flex; gap: 10px; flex-shrink: 0; /* Impede que a barra de texto diminua de tamanho */ } input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 25px; font-size: 16px; outline: none; } button { background: #cc0000; color: #fff; border: none; border-radius: 25px; padding: 0 20px; cursor: pointer; font-weight: bold; } </style> </head> <body> <div id="chat"> <div class="msg ba">OI! Eu sou o Ômega 7. O que vamos aprender hoje?</div> </div> <div id="input-area"> <input type="text" id="userInput" placeholder="Escreva aqui..." autocomplete="off"> <button id="btnEnviar">ENVIAR</button> </div> <script> // Configurações de Conexão const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co'; const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4'; const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); // --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) --- const VOCABULARIO = { naoSabe: [ "Essa é nova para mim, o que significa?", "Vish, meu banco de dados não tem isso. Me explica?", "Fiquei na curiosidade agora... o que é isso?", "Ainda não cheguei nessa parte do aprendizado. Me ajuda?", "Interessante! Me conta mais sobre isso?", "Pode me explicar melhor o que você quis dizer?", "Essa palavra eu ainda não conheço. O que ela é?", "Sou todo ouvidos! Me ensina o que é isso?", "Puxa, essa eu vou ficar te devendo. Me dá uma aula?", "Estou pronto para aprender! Define isso para mim?", "Meu processador travou nessa. O que seria?", "Ainda estou descobrindo o mundo. O que é isso aí?", "Adoraria saber o que isso significa!", "Você me pegou! Não faço ideia, me conta?", "Como você definiria isso para um novato?", "Isso é grego para mim ainda. Me traduz?", "Bora expandir meu conhecimento? O que é isso?", "Nunca li sobre isso. Pode me dar um resumo?", "Que termo curioso! O que ele significa?", "Estou anotando tudo, mas falta saber o que é isso..." ], aprendeu: [ "Ah, entendi perfeitamente! Valeu!", "Boa! Agora sim isso faz sentido aqui pra mim.", "Legal, guardei essa informação com carinho.", "Opa, registro atualizado com sucesso!", "Ficou claro agora. Você explica muito bem!", "Maravilha, mais uma para a minha coleção.", "Perfeito! Já sei o que responder na próxima.", "Entendido! Meu 'cérebro' agradece.", "Show! Conhecimento absorvido.", "Anotadíssimo. Obrigado pela paciência!", "Vivendo e aprendendo... você é um ótimo professor.", "Isso vai me ajudar muito nas próximas conversas.", "Fascinante! Nunca tinha pensado por esse lado.", "Pronto! Coloquei aqui na minha lista de sabedoria.", "Saquei a lógica. Muito bom!", "Excelente, agora o quebra-cabeça está montado.", "Obrigado por me atualizar sobre isso!", "Aprender com você é muito mais fácil.", "Ok, memorizei! Pode continuar.", "Isso faz todo o sentido agora que você explicou." ], duvidaHumana: [ "Eu conheço isso, mas você tem algo novo a dizer?", "Eu costumo falar uma coisa, mas queria ouvir sua versão.", "Já ouvi falar, mas me conta do seu jeito?", "Tenho uma ideia sobre isso, mas aceito sugestões!", "Dessa eu sei um pouco, mas queria saber mais.", "O que mais você pode me contar sobre esse assunto?", "Será que tem outra forma de explicar isso?", "Estou querendo aprofundar esse tema. O que acha?", "Minha resposta padrão é uma, mas você tem outra melhor?", "Bora trocar uma ideia sobre isso? Conhece outro lado?", "Eu respondo de um jeito, mas quero variar. Dicas?", "Sempre bom ouvir uma segunda opinião. Qual a sua?", "Isso eu já vi, mas sinto que falta algo. Me ajuda?", "Vamos enriquecer esse assunto? O que mais você sabe?", "Eu lembro disso, mas queria uma visão diferente hoje.", "Você tem algum detalhe extra sobre isso para me dar?", "Quero ficar fera nisso. Tem mais alguma explicação?", "Minha base de dados está um pouco vazia aqui. Mais algo?", "Eu ia dizer uma coisa, mas prefiro te ouvir primeiro.", "Tem algum segredo sobre isso que eu ainda não sei?", "Como assim?", "O que você quer dizer?" ], gancho: [ "Mudando um pouco de saco pra mala... e isso aqui:", "Sabe do que eu me lembrei agora do nada?", "Falando em outra coisa, olha o que veio na cabeça:", "Aproveitando que a gente está conversando...", "Isso me lembrou uma dúvida que eu tinha guardada:", "Do nada me veio um insight: o que você sabe de...", "Por falar nisso, você conhece algo sobre isso aqui?", "Abrindo um parênteses na nossa conversa...", "Me ocorreu uma coisa interessante agora pouco:", "Saindo um pouco do tema, me tira uma dúvida?", "Olha que coincidência, lembrei de um termo legal:", "Enquanto a gente fala, minha mente buscou isso aqui:", "Ei, você que entende das coisas, o que me diz de...", "Deixa eu te perguntar uma coisa relacionada...", "Fiquei matutando aqui e lembrei disso:", "Já que estamos nesse clima, o que você acha de...", "Minha teia de pensamentos me trouxe até aqui:", "Interrompendo rapidinho: você lembra disso?", "Tive um estalo agora! O que você me diz sobre...", "Isso me soa familiar... o que você sabe sobre:" ], confirmacao: [ "Tô ligado!", "Entendi o recado.", "Beleza, prosseguindo...", "Com certeza!", "Faz sentido.", "Estou acompanhando.", "Saquei a jogada.", "Certinho!", "Pode deixar.", "Na escuta!", "Tô processando aqui.", "Entendo perfeitamente.", "Saquei o ponto.", "Ok, faz todo o sentido.", "Justo!", "Tô contigo nessa.", "Saquei, pode continuar.", "Aham, compreendido.", "Bateu aqui, entendi.", "Certo, prossiga!" ] }; function sortear(lista) { return lista[Math.floor(Math.random() * lista.length)]; } // Estados de Memória do Sistema let modoAprender = false; let termoPendente = ''; let conceitoAnteriorId = null; // --- FUNÇÃO PRINCIPAL DE ENVIO (Com Lógica de Probabilidade/Roleta) async function enviar() { const input = document.getElementById('userInput'); const texto = input.value.trim(); if (!texto) return; adicionarMensagem(texto, 'user'); input.value = ''; try { const termoLimpo = texto.toLowerCase() .replace(/[^\w\s]/gi, '') .replace(/\s+/g, ' ') .trim(); if (modoAprender) { const novoC = await salvarNovoConhecimento(termoPendente, texto); adicionarMensagem(sortear(VOCABULARIO.aprendeu), 'ba'); if (conceitoAnteriorId && novoC) await criarConexaoTeia(conceitoAnteriorId, novoC.id); conceitoAnteriorId = novoC ? novoC.id : null; modoAprender = false; termoPendente = ''; return; } // 1ª TENTATIVA: Busca por frase exata ou similar (usando o ILIKE que aceita partes do texto) let { data: conceito } = await _supabase .from('conceitos') .select('*, respostas(*)') .or(`termo_limpo.eq.'${termoLimpo}', termo_limpo.ilike.%${termoLimpo}%`) .maybeSingle(); // 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter) if (!conceito) { const palavras = termoLimpo.split(' '); const palavrasChave = palavras.filter(p => p.length > 3); if (palavrasChave.length > 0) { let { data: reflexao } = await _supabase .from('respostas') .select('*, conceitos(*)') .ilike('texto_resposta', `%${palavrasChave[palavrasChave.length - 1]}%`) .limit(1) .maybeSingle(); if (reflexao) { // EXIBE O SILOGISMO (Ele mostra que sabe algo relacionado) adicionarMensagem(`Sobre ${palavrasChave[palavrasChave.length - 1]}? Eu lembro que: ${reflexao.conceitos.termo_original}`, 'ba'); // PREPARA O APRENDIZADO (Não apaga a função, apenas soma o aprendizado a ela) modoAprender = true; termoPendente = texto; return; // Ele para aqui, esperando você definir "Terra é chao" } } } if (!conceito || !conceito.respostas || conceito.respostas.length === 0) { modoAprender = true; termoPendente = texto; adicionarMensagem(sortear(VOCABULARIO.naoSabe), 'ba'); } else { await _supabase.from('conceitos').update({ ultima_vez_visto: new Date() }).eq('id', conceito.id); if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) await criarConexaoTeia(conceitoAnteriorId, conceito.id); conceitoAnteriorId = conceito.id; // --- LOGICA ESTATÍSTICA DO JEFFERSON --- const r = conceito.respostas; const totalVotosPergunta = r.reduce((acc, curr) => acc + (curr.votos || 1), 0); // 1. Encontrar a resposta mais votada para calcular a Confiança const respostaMaisVotada = r.reduce((prev, current) => ((prev.votos || 1) > (current.votos || 1)) ? prev : current); const nivelConfianca = (respostaMaisVotada.votos || 1) / totalVotosPergunta; // 2. Classificação do Tipo de Pensamento let tipoPensamento = ""; if (nivelConfianca > 0.8) { tipoPensamento = "MATEMÁTICO"; } else if (nivelConfianca >= 0.4) { tipoPensamento = "HUMANO"; } else { tipoPensamento = "FILOSÓFICO"; } // --- NOVA FUNÇÃO DE CURIOSIDADE (A CRIANÇA DE 4 ANOS) --- let chanceDePerguntar = 1 - nivelConfianca; if (nivelConfianca > 0.9) chanceDePerguntar = 0.05; // 5% de chance mesmo se tiver certeza if (Math.random() < chanceDePerguntar) { adicionarMensagem(`Eu entendo que a resposta pode ser "${respostaMaisVotada.texto_resposta}", mas me explica melhor para eu aprender?`, 'ba'); modoAprender = true; termoPendente = texto; } else { // ROLETA ESTATÍSTICA (Só roda se ele não decidir perguntar) let sorteio = Math.random() * totalVotosPergunta; let respostaEscolhida = r[0]; for (let i = 0; i < r.length; i++) { if (sorteio < (r[i].votos || 1)) { respostaEscolhida = r[i]; break; } sorteio -= (r[i].votos || 1); } if (tipoPensamento === "MATEMÁTICO") { adicionarMensagem(respostaEscolhida.texto_resposta, 'ba'); } else if (tipoPensamento === "HUMANO") { adicionarMensagem(respostaEscolhida.texto_resposta, 'ba'); } else { adicionarMensagem(`Uns dizem "${respostaEscolhida.texto_resposta}", mas outros discordam. O que você acha?`, 'ba'); modoAprender = true; termoPendente = texto; } } // Mantém o gancho para puxar assunto puxarAssunto(texto); } } catch (err) { console.error("Erro:", err); } } async function puxarAssunto(textoUsuario) { const palavras = textoUsuario.toLowerCase().replace(/[^\w\s]/gi, '').split(" "); const palavrasChave = palavras.filter(p => p.length > 3); if (palavrasChave.length === 0) return; const palavraSorteada = palavrasChave[Math.floor(Math.random() * palavrasChave.length)]; let { data: conexoes } = await _supabase.from('conceitos').select('*').ilike('termo_limpo', `%${palavraSorteada}%`).limit(5); if (conexoes && conexoes.length > 0) { const sugestao = conexoes.find(c => c.termo_limpo !== textoUsuario.toLowerCase()) || conexoes[0]; if (sugestao.termo_limpo === textoUsuario.toLowerCase()) return; setTimeout(() => { const prefixo = sortear(VOCABULARIO.gancho); adicionarMensagem(`${prefixo} ${sugestao.termo_original}`, 'ba'); }, 2500); } } async function salvarNovoConhecimento(pergunta, resposta) { try { const termoLimpo = pergunta.toLowerCase() .replace(/[^\w\s]/gi, '') .replace(/\s+/g, ' ') .trim(); const { data: nc } = await _supabase.from('conceitos').upsert({ termo_limpo: termoLimpo, termo_original: pergunta }).select().single(); let { data: respExistente } = await _supabase.from('respostas').select('*').eq('conceito_id', nc.id).eq('texto_resposta', resposta).maybeSingle(); if (respExistente) { await _supabase.from('respostas').update({ votos: respExistente.votos + 1 }).eq('id', respExistente.id); } else { await _supabase.from('respostas').insert({ conceito_id: nc.id, texto_resposta: resposta, tipo_pensamento: 'humano' }); } return nc; } catch (e) { return null; } } async function criarConexaoTeia(idA, idB) { try { let { data: link } = await _supabase.from('teia').select('*').or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`).maybeSingle(); if (link) { await _supabase.from('teia').update({ forca: link.forca + 1 }).eq('id', link.id); } else { await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 }); } } catch (e) { } } function adicionarMensagem(txt, autor) { const chat = document.getElementById('chat'); const div = document.createElement('div'); div.className = `msg ${autor}`; div.innerText = txt; chat.appendChild(div); chat.scrollTop = chat.scrollHeight; } document.getElementById('btnEnviar').addEventListener('click', enviar); document.getElementById('userInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') enviar(); }); </script> </body> </html>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PROJETO B.A.</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; } /* Garante que padding não aumente o tamanho dos elementos */
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f4f4f4; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 90vh; /* Ocupa a altura da tela */
+        }
+        
+        #chat { 
+            flex: 1; /* Ocupa todo o espaço disponível entre o topo e o rodapé */
+            overflow-y: auto; 
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: #fff;
+        }
+        
+        .msg { 
+            padding: 12px 18px; 
+            border-radius: 15px; 
+            max-width: 85%; 
+            word-wrap: break-word;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            font-size: 16px;
+        }
+        
+        .ba { background: #f1f1f1; border-left: 5px solid #cc0000; align-self: flex-start; }
+        .user { background: #cc0000; color: #fff; align-self: flex-end; }
+        
+        #input-area { 
+            padding: 15px; 
+            background: #fff; 
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0; /* Impede que a barra de texto diminua de tamanho */
+        }
+        
+        input { 
+            flex: 1; 
+            padding: 12px; 
+            border: 1px solid #ccc; 
+            border-radius: 25px; 
+            font-size: 16px;
+            outline: none;
+        }
+        
+        button { 
+            background: #cc0000; 
+            color: #fff; 
+            border: none; 
+            border-radius: 25px; 
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="chat">
+        <div class="msg ba">OI! Eu sou o Ômega 7. O que vamos aprender hoje?</div>
+    </div>
+
+    <div id="input-area">
+        <input type="text" id="userInput" placeholder="Escreva aqui..." autocomplete="off">
+        <button id="btnEnviar">ENVIAR</button>
+    </div>
+
+    <script>
+    // Configurações de Conexão
+    const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) ---
+    const VOCABULARIO = {
+        naoSabe: [
+            "Essa é nova para mim, o que significa?", "Vish, meu banco de dados não tem isso. Me explica?", "Fiquei na curiosidade agora... o que é isso?", 
+            "Ainda não cheguei nessa parte do aprendizado. Me ajuda?", "Interessante! Me conta mais sobre isso?", "Pode me explicar melhor o que você quis dizer?",
+            "Essa palavra eu ainda não conheço. O que ela é?", "Sou todo ouvidos! Me ensina o que é isso?", "Puxa, essa eu vou ficar te devendo. Me dá uma aula?",
+            "Estou pronto para aprender! Define isso para mim?", "Meu processador travou nessa. O que seria?", "Ainda estou descobrindo o mundo. O que é isso aí?",
+            "Adoraria saber o que isso significa!", "Você me pegou! Não faço ideia, me conta?", "Como você definiria isso para um novato?", 
+            "Isso é grego para mim ainda. Me traduz?", "Bora expandir meu conhecimento? O que é isso?", "Nunca li sobre isso. Pode me dar um resumo?",
+            "Que termo curioso! O que ele significa?", "Estou anotando tudo, mas falta saber o que é isso..."
+        ],
+        aprendeu: [
+            "Ah, entendi perfeitamente! Valeu!", "Boa! Agora sim isso faz sentido aqui pra mim.", "Legal, guardei essa informação com carinho.",
+            "Opa, registro atualizado com sucesso!", "Ficou claro agora. Você explica muito bem!", "Maravilha, mais uma para a minha coleção.",
+            "Perfeito! Já sei o que responder na próxima.", "Entendido! Meu 'cérebro' agradece.", "Show! Conhecimento absorvido.",
+            "Anotadíssimo. Obrigado pela paciência!", "Vivendo e aprendendo... você é um ótimo professor.", "Isso vai me ajudar muito nas próximas conversas.",
+            "Fascinante! Nunca tinha pensado por esse lado.", "Pronto! Coloquei aqui na minha lista de sabedoria.", "Saquei a lógica. Muito bom!",
+            "Excelente, agora o quebra-cabeça está montado.", "Obrigado por me atualizar sobre isso!", "Aprender com você é muito mais fácil.",
+            "Ok, memorizei! Pode continuar.", "Isso faz todo o sentido agora que você explicou."
+        ],
+        duvidaHumana: [
+            "Eu conheço isso, mas você tem algo novo a dizer?", "Eu costumo falar uma coisa, mas queria ouvir sua versão.", "Já ouvi falar, mas me conta do seu jeito?",
+            "Tenho uma ideia sobre isso, mas aceito sugestões!", "Dessa eu sei um pouco, mas queria saber mais.", "O que mais você pode me contar sobre esse assunto?",
+            "Será que tem outra forma de explicar isso?", "Estou querendo aprofundar esse tema. O que acha?", "Minha resposta padrão é uma, mas você tem outra melhor?",
+            "Bora trocar uma ideia sobre isso? Conhece outro lado?", "Eu respondo de um jeito, mas quero variar. Dicas?", "Sempre bom ouvir uma segunda opinião. Qual a sua?",
+            "Isso eu já vi, mas sinto que falta algo. Me ajuda?", "Vamos enriquecer esse assunto? O que mais você sabe?", "Eu lembro disso, mas queria uma visão diferente hoje.",
+            "Você tem algum detalhe extra sobre isso para me dar?", "Quero ficar fera nisso. Tem mais alguma explicação?", "Minha base de dados está um pouco vazia aqui. Mais algo?",
+            "Eu ia dizer uma coisa, mas prefiro te ouvir primeiro.", "Tem algum segredo sobre isso que eu ainda não sei?", "Como assim?", "O que você quer dizer?"
+        ],
+        gancho: [
+            "Mudando um pouco de saco pra mala... e isso aqui:", "Sabe do que eu me lembrei agora do nada?", "Falando em outra coisa, olha o que veio na cabeça:",
+            "Aproveitando que a gente está conversando...", "Isso me lembrou uma dúvida que eu tinha guardada:", "Do nada me veio um insight: o que você sabe de...",
+            "Por falar nisso, você conhece algo sobre isso aqui?", "Abrindo um parênteses na nossa conversa...", "Me ocorreu uma coisa interessante agora pouco:",
+            "Saindo um pouco do tema, me tira uma dúvida?", "Olha que coincidência, lembrei de um termo legal:", "Enquanto a gente fala, minha mente buscou isso aqui:",
+            "Ei, você que entende das coisas, o que me diz de...", "Deixa eu te perguntar uma coisa relacionada...", "Fiquei matutando aqui e lembrei disso:",
+            "Já que estamos nesse clima, o que você acha de...", "Minha teia de pensamentos me trouxe até aqui:", "Interrompendo rapidinho: você lembra disso?",
+            "Tive um estalo agora! O que você me diz sobre...", "Isso me soa familiar... o que você sabe sobre:"
+        ],
+        confirmacao: [
+            "Tô ligado!", "Entendi o recado.", "Beleza, prosseguindo...", "Com certeza!", "Faz sentido.", "Estou acompanhando.",
+            "Saquei a jogada.", "Certinho!", "Pode deixar.", "Na escuta!", "Tô processando aqui.", "Entendo perfeitamente.",
+            "Saquei o ponto.", "Ok, faz todo o sentido.", "Justo!", "Tô contigo nessa.", "Saquei, pode continuar.",
+            "Aham, compreendido.", "Bateu aqui, entendi.", "Certo, prossiga!"
+        ]
+    };
+
+    function sortear(lista) {
+        return lista[Math.floor(Math.random() * lista.length)];
+    }
+
+    // Estados de Memória do Sistema
+let modoAprender = false;
+let termoPendente = '';
+let conceitoAnteriorId = null;
+
+// --- FUNÇÃO PRINCIPAL DE ENVIO (Com Lógica de Probabilidade/Roleta)
+
+    async function enviar() {
+        const input = document.getElementById('userInput');
+        const texto = input.value.trim();
+        if (!texto) return;
+
+        adicionarMensagem(texto, 'user');
+        input.value = '';
+
+        try {
+const termoLimpo = texto.toLowerCase()
+    .replace(/[^\w\s]/gi, '') 
+    .replace(/\s+/g, ' ')    
+    .trim();                  
+
+            if (modoAprender) {
+                const novoC = await salvarNovoConhecimento(termoPendente, texto);
+                adicionarMensagem(sortear(VOCABULARIO.aprendeu), 'ba');
+                if (conceitoAnteriorId && novoC) await criarConexaoTeia(conceitoAnteriorId, novoC.id);
+                conceitoAnteriorId = novoC ? novoC.id : null;
+                modoAprender = false;
+                termoPendente = '';
+                return;
+            }
+
+            // 1ª TENTATIVA: Busca por frase exata ou similar (usando o ILIKE que aceita partes do texto)
+let { data: conceito } = await _supabase
+    .from('conceitos')
+    .select('*, respostas(*)')
+    .or(`termo_limpo.eq.'${termoLimpo}', termo_limpo.ilike.%${termoLimpo}%`)
+    .maybeSingle();
+
+// 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter)
+if (!conceito) {
+    const palavras = termoLimpo.split(' ');
+    const palavrasChave = palavras.filter(p => p.length > 3);
+
+    if (palavrasChave.length > 0) {
+        let { data: reflexao } = await _supabase
+            .from('respostas')
+            .select('*, conceitos(*)')
+            .ilike('texto_resposta', `%${palavrasChave[palavrasChave.length - 1]}%`) 
+            .limit(1)
+            .maybeSingle();
+
+        if (reflexao) {
+            // EXIBE O SILOGISMO (Ele mostra que sabe algo relacionado)
+            adicionarMensagem(`Sobre ${palavrasChave[palavrasChave.length - 1]}? Eu lembro que: ${reflexao.conceitos.termo_original}`, 'ba');
+            
+            // PREPARA O APRENDIZADO (Não apaga a função, apenas soma o aprendizado a ela)
+            modoAprender = true;
+            termoPendente = texto; 
+            return; // Ele para aqui, esperando você definir "Terra é chao"
+        }
+    }
+}
+            if (!conceito || !conceito.respostas || conceito.respostas.length === 0) {
+                modoAprender = true;
+                termoPendente = texto;
+                adicionarMensagem(sortear(VOCABULARIO.naoSabe), 'ba');
+            } else {
+                await _supabase.from('conceitos').update({ ultima_vez_visto: new Date() }).eq('id', conceito.id);
+                if (conceitoAnteriorId && conceitoAnteriorId !== conceito.id) await criarConexaoTeia(conceitoAnteriorId, conceito.id);
+                conceitoAnteriorId = conceito.id;
+
+// --- LOGICA ESTATÍSTICA DO JEFFERSON ---
+                const r = conceito.respostas;
+                const totalVotosPergunta = r.reduce((acc, curr) => acc + (curr.votos || 1), 0);
+
+                // 1. Encontrar a resposta mais votada para calcular a Confiança
+                const respostaMaisVotada = r.reduce((prev, current) => ((prev.votos || 1) > (current.votos || 1)) ? prev : current);
+                const nivelConfianca = (respostaMaisVotada.votos || 1) / totalVotosPergunta;
+
+                // 2. Classificação do Tipo de Pensamento
+                let tipoPensamento = "";
+                if (nivelConfianca > 0.8) {
+                    tipoPensamento = "MATEMÁTICO"; 
+                } else if (nivelConfianca >= 0.4) {
+                    tipoPensamento = "HUMANO";     
+                } else {
+                    tipoPensamento = "FILOSÓFICO"; 
+                }
+
+    // --- NOVA FUNÇÃO DE CURIOSIDADE (A CRIANÇA DE 4 ANOS) ---
+                let chanceDePerguntar = 1 - nivelConfianca; 
+                if (nivelConfianca > 0.9) chanceDePerguntar = 0.05; // 5% de chance mesmo se tiver certeza
+
+                if (Math.random() < chanceDePerguntar) {
+                    adicionarMensagem(`Eu entendo que a resposta pode ser "${respostaMaisVotada.texto_resposta}", mas me explica melhor para eu aprender?`, 'ba');
+                    modoAprender = true;
+                    termoPendente = texto;
+                } else {
+                    // ROLETA ESTATÍSTICA (Só roda se ele não decidir perguntar)
+                    let sorteio = Math.random() * totalVotosPergunta;
+                    let respostaEscolhida = r[0];
+                    for (let i = 0; i < r.length; i++) {
+                        if (sorteio < (r[i].votos || 1)) {
+                            respostaEscolhida = r[i];
+                            break;
+                        }
+                        sorteio -= (r[i].votos || 1);
+                    }
+
+                    if (tipoPensamento === "MATEMÁTICO") {
+                        adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
+                    } else if (tipoPensamento === "HUMANO") {
+                        adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
+                    } else {
+                        adicionarMensagem(`Uns dizem "${respostaEscolhida.texto_resposta}", mas outros discordam. O que você acha?`, 'ba');
+                        modoAprender = true;
+                        termoPendente = texto;
+                    }
+                }         
+                // Mantém o gancho para puxar assunto
+                puxarAssunto(texto);
+            }
+        } catch (err) { console.error("Erro:", err); }
+    }
+
+    async function puxarAssunto(textoUsuario) {
+        const palavras = textoUsuario.toLowerCase().replace(/[^\w\s]/gi, '').split(" ");
+        const palavrasChave = palavras.filter(p => p.length > 3);
+        if (palavrasChave.length === 0) return;
+        const palavraSorteada = palavrasChave[Math.floor(Math.random() * palavrasChave.length)];
+
+        let { data: conexoes } = await _supabase.from('conceitos').select('*').ilike('termo_limpo', `%${palavraSorteada}%`).limit(5);
+
+        if (conexoes && conexoes.length > 0) {
+            const sugestao = conexoes.find(c => c.termo_limpo !== textoUsuario.toLowerCase()) || conexoes[0];
+            if (sugestao.termo_limpo === textoUsuario.toLowerCase()) return;
+
+            setTimeout(() => {
+                const prefixo = sortear(VOCABULARIO.gancho);
+                adicionarMensagem(`${prefixo} ${sugestao.termo_original}`, 'ba');
+            }, 2500); 
+        }
+    }
+
+    async function salvarNovoConhecimento(pergunta, resposta) {
+    try {
+        const termoLimpo = pergunta.toLowerCase().trim().replace(/\s+/g, ' ');
+        const respostaLimpa = resposta.trim().replace(/\s+/g, ' ');
+
+        // 1. Garante o conceito (termo pai)
+        const { data: nc } = await _supabase.from('conceitos')
+            .upsert({ termo_limpo: termoLimpo, termo_original: pergunta })
+            .select().single();
+
+        // 2. Busca se essa resposta EXATA já existe para esse conceito
+        let { data: respExistente } = await _supabase.from('respostas')
+            .select('*')
+            .eq('conceito_id', nc.id)
+            .eq('texto_resposta', respostaLimpa)
+            .maybeSingle();
+
+        let tipoFinal = 'humano'; // Padrão inicial
+
+        if (respExistente) {
+            // Pegamos o total de votos atual e somamos 1 (o voto que você está dando agora)
+            let { data: todas } = await _supabase.from('respostas').select('votos').eq('conceito_id', nc.id);
+            const totalVotos = todas.reduce((acc, curr) => acc + (curr.votos || 1), 0) + 1;
+            
+            // O novo valor de votos desta resposta específica
+            const novosVotosDaqui = (respExistente.votos || 1) + 1;
+            
+            // Agora sim, a confiança real do momento
+            const confianca = novosVotosDaqui / totalVotos;
+
+            if (confianca > 0.8) tipoFinal = 'matemático';
+            else if (confianca >= 0.4) tipoFinal = 'humano';
+            else tipoFinal = 'filosófico';
+
+            await _supabase.from('respostas')
+                .update({ 
+                    votos: novosVotosDaqui, 
+                    tipo_pensamento: tipoFinal 
+                })
+                .eq('id', respExistente.id);
+        } else {
+            // Se é a primeira vez, entra como humano (ou matemático se for a única)
+            await _supabase.from('respostas').insert({ 
+                conceito_id: nc.id, 
+                texto_resposta: respostaLimpa, 
+                votos: 1, 
+                tipo_pensamento: 'humano' 
+            });
+        }
+        return nc;
+    } catch (e) { console.error("Erro ao salvar:", e); return null; }
+}
+
+    async function criarConexaoTeia(idA, idB) {
+        try {
+            let { data: link } = await _supabase.from('teia').select('*').or(`and(termo_a.eq.${idA},termo_b.eq.${idB}),and(termo_a.eq.${idB},termo_b.eq.${idA})`).maybeSingle();
+            if (link) { await _supabase.from('teia').update({ forca: link.forca + 1 }).eq('id', link.id); }
+            else { await _supabase.from('teia').insert({ termo_a: idA, termo_b: idB, forca: 1 }); }
+        } catch (e) { }
+    }
+
+    function adicionarMensagem(txt, autor) {
+        const chat = document.getElementById('chat');
+        const div = document.createElement('div');
+        div.className = `msg ${autor}`;
+        div.innerText = txt;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.getElementById('btnEnviar').addEventListener('click', enviar);
+    document.getElementById('userInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') enviar(); });
+
+</script>
+
+</body>
+</html>
+
