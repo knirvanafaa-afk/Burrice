@@ -299,14 +299,16 @@ if (!conceito) {
         let tipoFinal = 'humano'; // Padrão inicial
 
         if (respExistente) {
-            // --- CÁLCULO PARA TABELAS VIVAS ---
-            // Pegamos todas as respostas desse conceito para ver a nova confiança
+            // Pegamos o total de votos atual e somamos 1 (o voto que você está dando agora)
             let { data: todas } = await _supabase.from('respostas').select('votos').eq('conceito_id', nc.id);
             const totalVotos = todas.reduce((acc, curr) => acc + (curr.votos || 1), 0) + 1;
+            
+            // O novo valor de votos desta resposta específica
             const novosVotosDaqui = (respExistente.votos || 1) + 1;
+            
+            // Agora sim, a confiança real do momento
             const confianca = novosVotosDaqui / totalVotos;
 
-            // Define o novo status baseado na sua regra de 0.8 e 0.4
             if (confianca > 0.8) tipoFinal = 'matemático';
             else if (confianca >= 0.4) tipoFinal = 'humano';
             else tipoFinal = 'filosófico';
@@ -314,7 +316,7 @@ if (!conceito) {
             await _supabase.from('respostas')
                 .update({ 
                     votos: novosVotosDaqui, 
-                    tipo_pensamento: tipoFinal // AQUI A TABELA MUDA DE COR!
+                    tipo_pensamento: tipoFinal 
                 })
                 .eq('id', respExistente.id);
         } else {
