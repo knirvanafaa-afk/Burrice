@@ -281,16 +281,21 @@ if (!conceito) {
 
 async function salvarNovoConhecimento(pergunta, resposta) {
     try {
-        // Usamos a limpeza simples que sempre funcionou nos seus arquivos antigos
+        // MANTÉM A LIMPEZA DOS ANTIGOS: Garante que o "Oi" seja achado no banco
         const termoLimpo = pergunta.toLowerCase().trim().replace(/\s+/g, ' ');
 
-        // 1. Garante o conceito (termo pai)
+        // 1. Garante o conceito usando o termo_limpo (como nos antigos) 
+        // mas enviando o termo_original (pergunta) junto
         const { data: nc } = await _supabase.from('conceitos')
-            .upsert({ termo_limpo: termoLimpo, termo_original: pergunta })
+            .upsert({ 
+                termo_limpo: termoLimpo, 
+                termo_original: pergunta 
+            })
             .select().single();
 
-        // 2. Busca se essa resposta EXATA já existe para esse conceito
-        // Importante: usamos o parâmetro 'resposta' diretamente aqui
+        if (!nc) return null;
+
+        // 2. Busca resposta exata (usando o parâmetro 'resposta' que vem da função)
         let { data: respExistente } = await _supabase.from('respostas')
             .select('*')
             .eq('conceito_id', nc.id)
@@ -298,7 +303,7 @@ async function salvarNovoConhecimento(pergunta, resposta) {
             .maybeSingle();
 
         if (respExistente) {
-            // LÓGICA DE VOTOS E EVOLUÇÃO (Tabelas Vivas)
+            // Lógica de evolução: soma votos e muda tipo_pensamento
             let { data: todas } = await _supabase.from('respostas').select('votos').eq('conceito_id', nc.id);
             const totalVotos = todas.reduce((acc, curr) => acc + (curr.votos || 1), 0) + 1;
             const novosVotosDaqui = (respExistente.votos || 1) + 1;
@@ -310,13 +315,10 @@ async function salvarNovoConhecimento(pergunta, resposta) {
             else tipoFinal = 'filosófico';
 
             await _supabase.from('respostas')
-                .update({ 
-                    votos: novosVotosDaqui, 
-                    tipo_pensamento: tipoFinal 
-                })
+                .update({ votos: novosVotosDaqui, tipo_pensamento: tipoFinal })
                 .eq('id', respExistente.id);
         } else {
-            // Se é a primeira vez, entra como humano
+            // Nova resposta: grava como humano
             await _supabase.from('respostas').insert({ 
                 conceito_id: nc.id, 
                 texto_resposta: resposta.trim(), 
