@@ -170,7 +170,7 @@ const termoLimpo = texto.toLowerCase()
 let { data: conceito } = await _supabase
     .from('conceitos')
     .select('*, respostas(*)')
-    .or(`termo_limpo.eq.'${termoLimpo}', termo_limpo.ilike.%${termoLimpo}%`)
+    .eq('termo_limpo', termoLimpo) termo_limpo.ilike.%${termoLimpo}%`)
     .maybeSingle();
 
 // 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter)
@@ -281,20 +281,22 @@ if (!conceito) {
 
 async function salvarNovoConhecimento(pergunta, resposta) {
     try {
-        // MANTÉM A LIMPEZA DOS ANTIGOS: Garante que o "Oi" seja achado no banco
-        const termoLimpo = pergunta.toLowerCase().trim().replace(/\s+/g, ' ');
+        // UNIFICAÇÃO DA LIMPEZA: Agora igual à função enviar()
+        const termoLimpo = pergunta.toLowerCase()
+            .replace(/[^\w\s]/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        
+        const respostaLimpa = resposta.trim().replace(/\s+/g, ' ');
 
-        // 1. Garante o conceito usando o termo_limpo (como nos antigos) 
-        // mas enviando o termo_original (pergunta) junto
-        // Localize o upsert de conceitos e deixe exatamente assim:
-const { data: nc } = await _supabase
-    .from('conceitos')
-    .upsert(
-        { termo_limpo: termoLimpo, termo_original: pergunta }, 
-        { onConflict: 'termo_limpo' } // Resolve o erro 23505
-    )
-    .select()
-    .single();
+        const { data: nc } = await _supabase
+            .from('conceitos')
+            .upsert(
+                { termo_limpo: termoLimpo, termo_original: pergunta }, 
+                { onConflict: 'termo_limpo' }
+            )
+            .select()
+            .single();
 
 // O resto do código (que faz o cálculo de votos e tipo_pensamento) 
 // agora vai voltar a funcionar porque o nc.id será retornado corretamente.
