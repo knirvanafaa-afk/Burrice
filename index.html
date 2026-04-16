@@ -166,12 +166,12 @@ const termoLimpo = texto.toLowerCase()
                 return;
             }
 
-            // 1ª TENTATIVA: Busca por frase exata ou similar (usando o ILIKE que aceita partes do texto)
-let { data: conceito } = await _supabase
-    .from('conceitos')
-    .select('*, respostas(*)')
-    .eq('termo_limpo', termoLimpo) termo_limpo.ilike.%${termoLimpo}%`)
-    .maybeSingle();
+          // 1ª TENTATIVA: Busca exata pelo termo limpo (Blindagem)
+            let { data: conceito } = await _supabase
+                .from('conceitos')
+                .select('*, respostas(*)')
+                .eq('termo_limpo', termoLimpo)
+                .maybeSingle();
 
 // 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter)
 if (!conceito) {
