@@ -173,13 +173,12 @@ let { data: conceito } = await _supabase
     .or(`termo_limpo.eq.'${termoLimpo}', termo_limpo.ilike.%${termoLimpo}%`)
     .maybeSingle();
 
-// 2ª TENTATIVA: AUTO-REFLEXÃO (Busca o termo dentro das respostas já existentes)
+// 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter)
 if (!conceito) {
     const palavras = termoLimpo.split(' ');
     const palavrasChave = palavras.filter(p => p.length > 3);
 
     if (palavrasChave.length > 0) {
-        // Ele procura se a palavra (ex: "bebida") aparece em qualquer resposta que ele já deu
         let { data: reflexao } = await _supabase
             .from('respostas')
             .select('*, conceitos(*)')
@@ -188,13 +187,14 @@ if (!conceito) {
             .maybeSingle();
 
         if (reflexao) {
-    adicionarMensagem(`Sobre ${palavrasChave[palavrasChave.length - 1]}? Eu lembro que: ${reflexao.conceitos.termo_original}`, 'ba');
-    
-    // Em vez de dar return, vamos preparar ele para aprender o que você acabou de dizer
-    modoAprender = true;
-    termoPendente = texto;
-    return; 
-}
+            // EXIBE O SILOGISMO (Ele mostra que sabe algo relacionado)
+            adicionarMensagem(`Sobre ${palavrasChave[palavrasChave.length - 1]}? Eu lembro que: ${reflexao.conceitos.termo_original}`, 'ba');
+            
+            // PREPARA O APRENDIZADO (Não apaga a função, apenas soma o aprendizado a ela)
+            modoAprender = true;
+            termoPendente = texto; 
+            return; // Ele para aqui, esperando você definir "Terra é chao"
+        }
     }
 }
             if (!conceito || !conceito.respostas || conceito.respostas.length === 0) {
