@@ -188,7 +188,7 @@ if (!conceito) {
 
         if (reflexao) {
             // EXIBE O SILOGISMO (Ele mostra que sabe algo relacionado)
-            adicionarMensagem(`Sobre ${palavrasChave[palavrasChave.length - 1]}? Eu lembro que: ${reflexao.conceitos.termo_original}`, 'ba');
+            adicionarMensagem(reflexao.conceitos.termo_original, 'ba');
             
             // PREPARA O APRENDIZADO (Não apaga a função, apenas soma o aprendizado a ela)
             modoAprender = true;
