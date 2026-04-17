@@ -166,12 +166,49 @@ const termoLimpo = texto.toLowerCase()
                 return;
             }
 
-          // 1ª TENTATIVA: Busca exata pelo termo limpo (Blindagem)
-            let { data: conceito } = await _supabase
-                .from('conceitos')
-                .select('*, respostas(*)')
-                .eq('termo_limpo', termoLimpo)
-                .maybeSingle();
+          /// 1ª TENTATIVA: Busca exata pelo termo limpo com Filtro de Vizinhança
+let { data: conceito } = await _supabase
+    .from('conceitos')
+    .select('*, respostas(*)')
+    .eq('termo_limpo', termoLimpo)
+    .maybeSingle();
+
+if (conceito && conceito.respostas && conceito.respostas.length > 0) {
+    let respostaEscolhida = conceito.respostas[0]; // Padrão: a primeira
+
+    // Se houver mais de uma resposta, acionamos o Filtro de Vizinhança
+    if (conceito.respostas.length > 1) {
+        const vizinhosFrase = texto.toLowerCase().split(' ').filter(p => p.length > 3 && p !== termoLimpo);
+        
+        // Buscamos na teia conexões entre o conceito atual e as outras palavras da frase
+        const { data: conexoes } = await _supabase
+            .from('teia')
+            .select('*')
+            .or(`termo_a.eq.${conceito.id},termo_b.eq.${conceito.id}`)
+            .order('forca', { ascending: false });
+
+        if (conexoes && conexoes.length > 0) {
+            // Verificamos qual resposta tem um "amigo" presente na frase atual
+            for (let resp of conceito.respostas) {
+                for (let v of vizinhosFrase) {
+                    const encontrou = conexoes.find(c => 
+                        (c.termo_a === conceito.id && c.termo_b_limpo === v) || 
+                        (c.termo_b === conceito.id && c.termo_a_limpo === v)
+                    );
+                    if (encontrou) {
+                        respostaEscolhida = resp;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
+    if (conceitoAnteriorId) await criarConexaoTeia(conceitoAnteriorId, conceito.id);
+    conceitoAnteriorId = conceito.id;
+    return;
+}
 
 // 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter)
 if (!conceito) {
@@ -281,7 +318,7 @@ if (!conceito) {
 
 async function salvarNovoConhecimento(pergunta, resposta) {
     try {
-        // UNIFICAÇÃO DA LIMPEZA: Agora igual à função enviar()
+        // 1. SUA LIMPEZA ORIGINAL (PRESERVADA)
         const termoLimpo = pergunta.toLowerCase()
             .replace(/[^\w\s]/gi, '')
             .replace(/\s+/g, ' ')
@@ -289,6 +326,7 @@ async function salvarNovoConhecimento(pergunta, resposta) {
         
         const respostaLimpa = resposta.trim().replace(/\s+/g, ' ');
 
+        // 2. SEU UPSERT ORIGINAL (PRESERVADO)
         const { data: nc } = await _supabase
             .from('conceitos')
             .upsert(
@@ -298,36 +336,81 @@ async function salvarNovoConhecimento(pergunta, resposta) {
             .select()
             .single();
 
-// O resto do código (que faz o cálculo de votos e tipo_pensamento) 
-// agora vai voltar a funcionar porque o nc.id será retornado corretamente.
-
         if (!nc) return null;
 
-// --- INSTINTO JEFISSONIANO: A CURIOSIDADE DA CRIANÇA (20%) ---
-if (Math.random() < 0.20) { 
-    setTimeout(async () => {
-        // Buscamos na teia a conexão mais forte com o que ele acabou de aprender
-        // nc.id é o ID do conceito que ele acabou de salvar
-        const { data: conexao } = await _supabase
-            .from('teia')
-            .select('*, conceitos_a:termo_a(id, termo_original), conceitos_b:termo_b(id, termo_original)')
-            .or(`termo_a.eq.${nc.id},termo_b.eq.${nc.id}`)
-            .order('forca', { ascending: false })
+        // --- 3. NOVA LÓGICA: PONTE DE SINÔNIMOS ---
+        // Verifica se essa resposta já existe para outro conceito e cria conexão na Teia
+        const { data: respIgual } = await _supabase
+            .from('respostas')
+            .select('conceito_id')
+            .eq('texto_resposta', respostaLimpa)
+            .neq('conceito_id', nc.id)
             .limit(1)
             .maybeSingle();
 
-        if (conexao) {
-            // Identifica qual termo da conexão não é o que estamos falando agora
-            const termoRelacionado = (conexao.termo_a === nc.id) ? conexao.conceitos_b : conexao.conceitos_a;
-            
-            // A pergunta "infantil" e direta
-            adicionarMensagem(`E o que é ${termoRelacionado.termo_original}?`, 'ba');
-            
-            // Prepara o sistema para aprender a resposta dessa nova pergunta
-            termoPendente = termoRelacionado.termo_original;
-            modoAprender = true;
+        if (respIgual) {
+            await criarConexaoTeia(nc.id, respIgual.conceito_id);
         }
-    }, 1500); // Pausa de 1.5s para parecer que a criança está processando
+
+        // 4. SUA LÓGICA DE VOTOS E PENSAMENTO (PRESERVADA E ATUALIZADA)
+        let { data: respExistente } = await _supabase
+            .from('respostas')
+            .select('*')
+            .eq('conceito_id', nc.id)
+            .eq('texto_resposta', respostaLimpa)
+            .maybeSingle();
+
+        if (respExistente) {
+            const novosVotosDaqui = respExistente.votos + 1;
+            const { data: todasResps } = await _supabase
+                .from('respostas')
+                .select('votos')
+                .eq('conceito_id', nc.id);
+            
+            const totalVotos = (todasResps ? todasResps.reduce((sum, r) => sum + r.votos, 0) : 0) + 1;
+            const confianca = novosVotosDaqui / totalVotos;
+            
+            let tipoFinal = 'humano';
+            if (confianca > 0.8) tipoFinal = 'matemático';
+            else if (confianca < 0.4) tipoFinal = 'filosófico';
+
+            await _supabase.from('respostas')
+                .update({ votos: novosVotosDaqui, tipo_pensamento: tipoFinal })
+                .eq('id', respExistente.id);
+        } else {
+            await _supabase.from('respostas').insert({ 
+                conceito_id: nc.id, 
+                texto_resposta: respostaLimpa, 
+                votos: 1, 
+                tipo_pensamento: 'humano' 
+            });
+        }
+
+        // --- 5. NOVA LÓGICA: INSTINTO DE CURIOSIDADE (20%) ---
+        if (Math.random() < 0.20) { 
+            setTimeout(async () => {
+                const { data: conexao } = await _supabase
+                    .from('teia')
+                    .select('*, conceitos_a:termo_a(id, termo_original), conceitos_b:termo_b(id, termo_original)')
+                    .or(`termo_a.eq.${nc.id},termo_b.eq.${nc.id}`)
+                    .order('forca', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (conexao) {
+                    const termoRelacionado = (conexao.termo_a === nc.id) ? conexao.conceitos_b : conexao.conceitos_a;
+                    adicionarMensagem(`E o que é ${termoRelacionado.termo_original}?`, 'ba');
+                    termoPendente = termoRelacionado.termo_original;
+                    modoAprender = true;
+                }
+            }, 1500);
+        }
+
+        return nc;
+    } catch (e) { 
+        console.error("Erro ao salvar:", e); 
+        return null; 
+    }
 }
 
         // 2. Busca resposta exata (usando o parâmetro 'resposta' que vem da função)
