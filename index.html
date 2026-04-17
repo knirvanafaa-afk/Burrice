@@ -143,15 +143,9 @@ let conceitoAnteriorId = null;
 // --- FUNÇÃO PRINCIPAL DE ENVIO (Com Lógica de Probabilidade/Roleta)
 
     async function enviar() {
-
         const input = document.getElementById('userInput');
         const texto = input.value.trim();
         if (!texto) return;
-
-if (texto.trim().toUpperCase() === "EXECUTAR_PODA_ANUAL") {
-    realizarPodaNeuralAnual();
-    return;
-}
 
         adicionarMensagem(texto, 'user');
         input.value = '';
@@ -172,7 +166,7 @@ const termoLimpo = texto.toLowerCase()
                 return;
             }
 
-          /// 1ª TENTATIVA: Busca exata pelo termo limpo com Filtro de Vizinhança
+          // 1ª TENTATIVA: Busca exata pelo termo limpo com Filtro de Vizinhança
 let { data: conceito } = await _supabase
     .from('conceitos')
     .select('*, respostas(*)')
@@ -180,13 +174,11 @@ let { data: conceito } = await _supabase
     .maybeSingle();
 
 if (conceito && conceito.respostas && conceito.respostas.length > 0) {
-    let respostaEscolhida = conceito.respostas[0]; // Padrão: a primeira
+    let respostaEscolhida = conceito.respostas[0];
 
-    // Se houver mais de uma resposta, acionamos o Filtro de Vizinhança
     if (conceito.respostas.length > 1) {
         const vizinhosFrase = texto.toLowerCase().split(' ').filter(p => p.length > 3 && p !== termoLimpo);
         
-        // Buscamos na teia conexões entre o conceito atual e as outras palavras da frase
         const { data: conexoes } = await _supabase
             .from('teia')
             .select('*')
@@ -194,7 +186,6 @@ if (conceito && conceito.respostas && conceito.respostas.length > 0) {
             .order('forca', { ascending: false });
 
         if (conexoes && conexoes.length > 0) {
-            // Verificamos qual resposta tem um "amigo" presente na frase atual
             for (let resp of conceito.respostas) {
                 for (let v of vizinhosFrase) {
                     const encontrou = conexoes.find(c => 
@@ -324,7 +315,7 @@ if (!conceito) {
 
 async function salvarNovoConhecimento(pergunta, resposta) {
     try {
-        // 1. SUA LIMPEZA ORIGINAL (PRESERVADA)
+        // UNIFICAÇÃO DA LIMPEZA: Agora igual à função enviar()
         const termoLimpo = pergunta.toLowerCase()
             .replace(/[^\w\s]/gi, '')
             .replace(/\s+/g, ' ')
@@ -332,7 +323,6 @@ async function salvarNovoConhecimento(pergunta, resposta) {
         
         const respostaLimpa = resposta.trim().replace(/\s+/g, ' ');
 
-        // 2. SEU UPSERT ORIGINAL (PRESERVADO)
         const { data: nc } = await _supabase
             .from('conceitos')
             .upsert(
@@ -342,81 +332,22 @@ async function salvarNovoConhecimento(pergunta, resposta) {
             .select()
             .single();
 
+// O resto do código (que faz o cálculo de votos e tipo_pensamento) 
+// agora vai voltar a funcionar porque o nc.id será retornado corretamente.
+
         if (!nc) return null;
 
-        // --- 3. NOVA LÓGICA: PONTE DE SINÔNIMOS ---
-        // Verifica se essa resposta já existe para outro conceito e cria conexão na Teia
-        const { data: respIgual } = await _supabase
-            .from('respostas')
-            .select('conceito_id')
-            .eq('texto_resposta', respostaLimpa)
-            .neq('conceito_id', nc.id)
-            .limit(1)
-            .maybeSingle();
+// --- 3. NOVA LÓGICA: PONTE DE SINÔNIMOS ---
+const { data: respIgual } = await _supabase
+    .from('respostas')
+    .select('conceito_id')
+    .eq('texto_resposta', respostaLimpa)
+    .neq('conceito_id', nc.id)
+    .limit(1)
+    .maybeSingle();
 
-        if (respIgual) {
-            await criarConexaoTeia(nc.id, respIgual.conceito_id);
-        }
-
-        // 4. SUA LÓGICA DE VOTOS E PENSAMENTO (PRESERVADA E ATUALIZADA)
-        let { data: respExistente } = await _supabase
-            .from('respostas')
-            .select('*')
-            .eq('conceito_id', nc.id)
-            .eq('texto_resposta', respostaLimpa)
-            .maybeSingle();
-
-        if (respExistente) {
-            const novosVotosDaqui = respExistente.votos + 1;
-            const { data: todasResps } = await _supabase
-                .from('respostas')
-                .select('votos')
-                .eq('conceito_id', nc.id);
-            
-            const totalVotos = (todasResps ? todasResps.reduce((sum, r) => sum + r.votos, 0) : 0) + 1;
-            const confianca = novosVotosDaqui / totalVotos;
-            
-            let tipoFinal = 'humano';
-            if (confianca > 0.8) tipoFinal = 'matemático';
-            else if (confianca < 0.4) tipoFinal = 'filosófico';
-
-            await _supabase.from('respostas')
-                .update({ votos: novosVotosDaqui, tipo_pensamento: tipoFinal })
-                .eq('id', respExistente.id);
-        } else {
-            await _supabase.from('respostas').insert({ 
-                conceito_id: nc.id, 
-                texto_resposta: respostaLimpa, 
-                votos: 1, 
-                tipo_pensamento: 'humano' 
-            });
-        }
-
-        // --- 5. NOVA LÓGICA: INSTINTO DE CURIOSIDADE (20%) ---
-        if (Math.random() < 0.20) { 
-            setTimeout(async () => {
-                const { data: conexao } = await _supabase
-                    .from('teia')
-                    .select('*, conceitos_a:termo_a(id, termo_original), conceitos_b:termo_b(id, termo_original)')
-                    .or(`termo_a.eq.${nc.id},termo_b.eq.${nc.id}`)
-                    .order('forca', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-
-                if (conexao) {
-                    const termoRelacionado = (conexao.termo_a === nc.id) ? conexao.conceitos_b : conexao.conceitos_a;
-                    adicionarMensagem(`E o que é ${termoRelacionado.termo_original}?`, 'ba');
-                    termoPendente = termoRelacionado.termo_original;
-                    modoAprender = true;
-                }
-            }, 1500);
-        }
-
-        return nc;
-    } catch (e) { 
-        console.error("Erro ao salvar:", e); 
-        return null; 
-    }
+if (respIgual) {
+    await criarConexaoTeia(nc.id, respIgual.conceito_id);
 }
 
         // 2. Busca resposta exata (usando o parâmetro 'resposta' que vem da função)
@@ -450,6 +381,26 @@ async function salvarNovoConhecimento(pergunta, resposta) {
                 tipo_pensamento: 'humano' 
             });
         }
+
+// --- 5. NOVA LÓGICA: INSTINTO DE CURIOSIDADE (20%) ---
+if (Math.random() < 0.20) { 
+    setTimeout(async () => {
+        const { data: conexao } = await _supabase
+            .from('teia')
+            .select('*, conceitos_a:termo_a(id, termo_original), conceitos_b:termo_b(id, termo_original)')
+            .or(`termo_a.eq.${nc.id},termo_b.eq.${nc.id}`)
+            .order('forca', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (conexao) {
+            const termoRelacionado = (conexao.termo_a === nc.id) ? conexao.conceitos_b : conexao.conceitos_a;
+            adicionarMensagem(`E o que é ${termoRelacionado.termo_original}?`, 'ba');
+            termoPendente = termoRelacionado.termo_original;
+            modoAprender = true;
+        }
+    }, 1500);
+}
         return nc;
     } catch (e) { 
         console.error("Erro ao salvar:", e); 
@@ -475,35 +426,6 @@ async function salvarNovoConhecimento(pergunta, resposta) {
 
     document.getElementById('btnEnviar').addEventListener('click', enviar);
     document.getElementById('userInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') enviar(); });
-
-async function realizarPodaNeuralAnual() {
-    const confirmacao = confirm("Deseja realizar a Poda Neural? Isso apagará conexões fracas da memória do Ômega 7.");
-    
-    if (confirmacao) {
-        try {
-            // 1. Reduz a força de todas as conexões na teia em 1 ponto
-            // Aqui fazemos um update direto via Supabase
-            const { data: todasConexoes } = await _supabase.from('teia').select('id, forca');
-            
-            for (let conexao of todasConexoes) {
-                const novaForca = conexao.forca - 1;
-                
-                if (novaForca <= 0) {
-                    // Se a força zerou, apaga a conexão
-                    await _supabase.from('teia').delete().eq('id', conexao.id);
-                } else {
-                    // Se ainda tem força, apenas atualiza
-                    await _supabase.from('teia').update({ forca: novaForca }).eq('id', conexao.id);
-                }
-            }
-
-            alert("Poda Neural concluída com sucesso!");
-        } catch (e) {
-            console.error("Erro na poda:", e);
-            alert("Erro ao realizar a poda.");
-        }
-    }
-}
 
 </script>
 
