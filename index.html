@@ -303,6 +303,33 @@ async function salvarNovoConhecimento(pergunta, resposta) {
 
         if (!nc) return null;
 
+// --- INSTINTO JEFISSONIANO: A CURIOSIDADE DA CRIANÇA (20%) ---
+if (Math.random() < 0.20) { 
+    setTimeout(async () => {
+        // Buscamos na teia a conexão mais forte com o que ele acabou de aprender
+        // nc.id é o ID do conceito que ele acabou de salvar
+        const { data: conexao } = await _supabase
+            .from('teia')
+            .select('*, conceitos_a:termo_a(id, termo_original), conceitos_b:termo_b(id, termo_original)')
+            .or(`termo_a.eq.${nc.id},termo_b.eq.${nc.id}`)
+            .order('forca', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (conexao) {
+            // Identifica qual termo da conexão não é o que estamos falando agora
+            const termoRelacionado = (conexao.termo_a === nc.id) ? conexao.conceitos_b : conexao.conceitos_a;
+            
+            // A pergunta "infantil" e direta
+            adicionarMensagem(`E o que é ${termoRelacionado.termo_original}?`, 'ba');
+            
+            // Prepara o sistema para aprender a resposta dessa nova pergunta
+            termoPendente = termoRelacionado.termo_original;
+            modoAprender = true;
+        }
+    }, 1500); // Pausa de 1.5s para parecer que a criança está processando
+}
+
         // 2. Busca resposta exata (usando o parâmetro 'resposta' que vem da função)
         let { data: respExistente } = await _supabase.from('respostas')
             .select('*')
