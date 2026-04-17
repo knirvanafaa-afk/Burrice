@@ -143,9 +143,15 @@ let conceitoAnteriorId = null;
 // --- FUNÇÃO PRINCIPAL DE ENVIO (Com Lógica de Probabilidade/Roleta)
 
     async function enviar() {
+
         const input = document.getElementById('userInput');
         const texto = input.value.trim();
         if (!texto) return;
+
+if (texto.trim().toUpperCase() === "EXECUTAR_PODA_ANUAL") {
+    realizarPodaNeuralAnual();
+    return;
+}
 
         adicionarMensagem(texto, 'user');
         input.value = '';
@@ -469,6 +475,35 @@ async function salvarNovoConhecimento(pergunta, resposta) {
 
     document.getElementById('btnEnviar').addEventListener('click', enviar);
     document.getElementById('userInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') enviar(); });
+
+async function realizarPodaNeuralAnual() {
+    const confirmacao = confirm("Deseja realizar a Poda Neural? Isso apagará conexões fracas da memória do Ômega 7.");
+    
+    if (confirmacao) {
+        try {
+            // 1. Reduz a força de todas as conexões na teia em 1 ponto
+            // Aqui fazemos um update direto via Supabase
+            const { data: todasConexoes } = await _supabase.from('teia').select('id, forca');
+            
+            for (let conexao of todasConexoes) {
+                const novaForca = conexao.forca - 1;
+                
+                if (novaForca <= 0) {
+                    // Se a força zerou, apaga a conexão
+                    await _supabase.from('teia').delete().eq('id', conexao.id);
+                } else {
+                    // Se ainda tem força, apenas atualiza
+                    await _supabase.from('teia').update({ forca: novaForca }).eq('id', conexao.id);
+                }
+            }
+
+            alert("Poda Neural concluída com sucesso!");
+        } catch (e) {
+            console.error("Erro na poda:", e);
+            alert("Erro ao realizar a poda.");
+        }
+    }
+}
 
 </script>
 
