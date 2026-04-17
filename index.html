@@ -162,6 +162,9 @@ const termoLimpo = texto.toLowerCase()
     .trim();                  
 
             if (modoAprender) {
+
+if (texto.length < 3) return;
+
                 const novoC = await salvarNovoConhecimento(termoPendente, texto);
                 adicionarMensagem(sortear(VOCABULARIO.aprendeu), 'ba');
                 if (conceitoAnteriorId && novoC) await criarConexaoTeia(conceitoAnteriorId, novoC.id);
