@@ -400,7 +400,7 @@ if (respIgual) {
         let { data: respExistente } = await _supabase.from('respostas')
             .select('*')
             .eq('conceito_id', nc.id)
-            .eq('texto_resposta', resposta.trim())
+           .eq('texto_resposta', respostaLimpa)
             .maybeSingle();
 
         if (respExistente) {
