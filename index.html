@@ -163,7 +163,7 @@ const termoLimpo = texto.toLowerCase()
 
             if (modoAprender) {
 
-if (texto.length < 3) return;
+if (texto.trim().length < 3) return;
 
                 const novoC = await salvarNovoConhecimento(termoPendente, texto);
                 adicionarMensagem(sortear(VOCABULARIO.aprendeu), 'ba');
@@ -320,6 +320,34 @@ if (!conceito) {
             }, 2500); 
         }
     }
+
+// --- FUNÇÃO ADICIONAL: HIGIENIZAÇÃO (PUNIÇÃO DAS RESPOSTAS IRMÃS) ---
+
+// Esta função apenas adiciona a lógica de -1 que discutimos, sem alterar as funções principais.
+
+async function higienizarVotosIrmaos(conceitoId, respostaAtualLimpa) {
+
+             try {
+const { data: respostas } = await _supabase.from('respostas').select('*').eq('conceito_id', conceitoId);
+
+if (!respostas) return;
+for (let resp of respostas) {
+if (resp.texto_resposta !== respostaAtualLimpa) {
+let novosVotos = (resp.votos || 1) - 1;
+if (novosVotos <= 0) {
+
+await _supabase.from('respostas').delete().eq('id', resp.id);
+
+} else {
+
+await _supabase.from('respostas').update({ votos: novosVotos }).eq('id', resp.id);
+         }
+     }
+}
+
+} catch (e) { console.error("Erro na higienização:", e);
+        }
+}
 
 async function salvarNovoConhecimento(pergunta, resposta) {
     try {
