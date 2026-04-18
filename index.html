@@ -328,12 +328,12 @@ if (!conceito) {
 async function higienizarVotosIrmaos(conceitoId, respostaAtualLimpa) {
 
              try {
-const { data: respostas } = await _supabase.from('respostas').select('*').eq('conceito_id', conceitoId);
+const { data: respostas } = await _supabase.from('respostas').select('id, texto_resposta, votos').eq('conceito_id', conceitoId);
 
 if (!respostas) return;
 for (let resp of respostas) {
 if (resp.texto_resposta !== respostaAtualLimpa) {
-let novosVotos = (resp.votos || 1) - 1;
+let novosVotos = (resp.votos || 1) - 0.2;
 if (novosVotos <= 0) {
 
 await _supabase.from('respostas').delete().eq('id', resp.id);
@@ -348,6 +348,14 @@ await _supabase.from('respostas').update({ votos: novosVotos }).eq('id', resp.id
 } catch (e) { console.error("Erro na higienização:", e);
         }
 }
+
+
+
+
+
+
+
+
 
 async function salvarNovoConhecimento(pergunta, resposta) {
     try {
@@ -408,6 +416,9 @@ if (respIgual) {
             await _supabase.from('respostas')
                 .update({ votos: novosVotosDaqui, tipo_pensamento: tipoFinal })
                 .eq('id', respExistente.id);
+
+await higienizarVotosIrmaos(nc.id, respostaLimpa);
+
         } else {
             // Nova resposta: grava como humano
             await _supabase.from('respostas').insert({ 
@@ -416,6 +427,9 @@ if (respIgual) {
                 votos: 1, 
                 tipo_pensamento: 'humano' 
             });
+
+await higienizarVotosIrmaos(nc.id, respostaLimpa);
+
         }
 
 // --- 5. NOVA LÓGICA: INSTINTO DE CURIOSIDADE (20%) ---
