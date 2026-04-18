@@ -302,24 +302,63 @@ if (!conceito) {
         } catch (err) { console.error("Erro:", err); }
     }
 
-    async function puxarAssunto(textoUsuario) {
-        const palavras = textoUsuario.toLowerCase().replace(/[^\w\s]/gi, '').split(" ");
-        const palavrasChave = palavras.filter(p => p.length > 3);
-        if (palavrasChave.length === 0) return;
-        const palavraSorteada = palavrasChave[Math.floor(Math.random() * palavrasChave.length)];
+async function puxarAssunto(textoUsuario) {
+    // 1. FILTROS ORIGINAIS: Mantendo sua limpeza de espaços e filtro de palavras > 3 letras
+    const palavras = textoUsuario.toLowerCase().replace(/[^\w\s]/gi, '').split(" ");
+    const palavrasChave = palavras.filter(p => p.length > 3);
+    
+    // Sorteio do "Dado de 15 lados" (1 a 10: Atual | 11 a 14: Passado | 15: Aleatório)
+    const sorteio = Math.floor(Math.random() * 15) + 1;
+    let sugestao = null;
 
-        let { data: conexoes } = await _supabase.from('conceitos').select('*').ilike('termo_limpo', `%${palavraSorteada}%`).limit(5);
+    try {
+        if (sorteio <= 10 && palavrasChave.length > 0) {
+            // --- LOGICA 1: ATUAL (10/15) ---
+            const palavraSorteada = palavrasChave[Math.floor(Math.random() * palavrasChave.length)];
+            let { data } = await _supabase.from('conceitos')
+                .select('id, termo_original, termo_limpo') // Select otimizado
+                .ilike('termo_limpo', `%${palavraSorteada}%`)
+                .neq('termo_limpo', textoUsuario.toLowerCase())
+                .limit(1);
+            if (data && data.length > 0) sugestao = data[0];
+        } 
+        
+        if (!sugestao && sorteio <= 14) {
+            // --- LOGICA 2: PASSADO (4/15) ---
+            // Busca o termo que faz mais tempo que não aparece na conversa
+            let { data } = await _supabase.from('conceitos')
+                .select('id, termo_original, termo_limpo')
+                .order('ultima_vez_visto', { ascending: true, nullsFirst: true })
+                .limit(1);
+            if (data && data.length > 0) sugestao = data[0];
+        } 
+        
+        if (!sugestao) {
+            // --- LOGICA 3: ALEATÓRIO (1/15) ---
+            // Sorteia um registro qualquer no banco
+            const { count } = await _supabase.from('conceitos').select('*', { count: 'exact', head: true });
+            const randomOff = Math.floor(Math.random() * (count || 1));
+            let { data } = await _supabase.from('conceitos')
+                .select('id, termo_original, termo_limpo')
+                .range(randomOff, randomOff)
+                .maybeSingle();
+            if (data) sugestao = data;
+        }
 
-        if (conexoes && conexoes.length > 0) {
-            const sugestao = conexoes.find(c => c.termo_limpo !== textoUsuario.toLowerCase()) || conexoes[0];
-            if (sugestao.termo_limpo === textoUsuario.toLowerCase()) return;
-
-            setTimeout(() => {
+        // --- EXECUÇÃO DO GANCHO ---
+        if (sugestao && sugestao.termo_limpo !== textoUsuario.toLowerCase()) {
+            setTimeout(async () => {
                 const prefixo = sortear(VOCABULARIO.gancho);
                 adicionarMensagem(`${prefixo} ${sugestao.termo_original}`, 'ba');
-            }, 2500); 
+                
+                // Atualiza a data para que este termo não seja repetido imediatamente no "Passado"
+                await _supabase.from('conceitos')
+                    .update({ ultima_vez_visto: new Date() })
+                    .eq('id', sugestao.id);
+            }, 2500); // Timer de 2500ms como solicitado
         }
-    }
+    } catch (e) { console.error("Erro no puxarAssunto:", e); }
+}
 
 // --- FUNÇÃO ADICIONAL: HIGIENIZAÇÃO (PUNIÇÃO DAS RESPOSTAS IRMÃS) ---
 
