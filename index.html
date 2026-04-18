@@ -210,9 +210,25 @@ if (conceito && conceito.respostas && conceito.respostas.length > 0) {
     }
     
     adicionarMensagem(respostaEscolhida.texto_resposta, 'ba');
-    if (conceitoAnteriorId) await criarConexaoTeia(conceitoAnteriorId, conceito.id);
-    conceitoAnteriorId = conceito.id;
-    return;
+
+// --- REFORÇO PASSIVO (Agora com o nome da variável correto) ---
+
+const novosVotosPassivos = (parseFloat(respostaEscolhida.votos) || 1) + 0.01;
+
+await _supabase.from('respostas')
+
+.update({ votos: novosVotosPassivos })
+
+.eq('id', respostaEscolhida.id);
+
+// Teia 1: SEGURANÇA ADICIONADA 
+
+if (conceitoAnteriorId && conceito && conceito.id) { 
+await criarConexaoTeia(conceitoAnteriorId, conceito.id); 
+} 
+
+conceitoAnteriorId = (conceito && conceito.id) ? conceito.id : null; 
+return;
 }
 
 // 2ª TENTATIVA: AUTO-REFLEXÃO (O Silogismo que você quer manter)
