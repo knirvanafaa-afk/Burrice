@@ -87,7 +87,7 @@
 // Configurações de Conexão
     const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===============================
 // 🧠 ESTADOS DO SISTEMA
@@ -259,7 +259,7 @@ function classificarConceito(respostasComFreq) {
 async function reforcarResposta(respostaId, quantidadeAtual) {
     const novaQuantidade = quantidadeAtual + 1;
 
-    await supabase
+    await _supabase
         .from("respostas")
         .update({ quantidade: novaQuantidade })
         .eq("id", respostaId);
@@ -271,7 +271,7 @@ async function reforcarResposta(respostaId, quantidadeAtual) {
 // ===============================
 
 async function inserirNovaResposta(conceitoId, texto) {
-    await supabase
+    await _supabase
         .from("respostas")
         .insert({
             conceito_id: conceitoId,
@@ -355,7 +355,7 @@ async function aprendizagemPassiva(conceitoId, respostas, textoUsuario) {
 // ===============================
 
 async function atualizarQuantidade(respostaId, quantidade) {
-    await supabase
+    await _supabase
         .from("respostas")
         .update({ quantidade })
         .eq("id", respostaId);
@@ -367,7 +367,7 @@ async function atualizarQuantidade(respostaId, quantidade) {
 // ===============================
 
 async function removerResposta(respostaId) {
-    await supabase
+    await _supabase
         .from("respostas")
         .delete()
         .eq("id", respostaId);
@@ -379,13 +379,13 @@ async function removerResposta(respostaId) {
 // ===============================
 
 async function limparConceitoSeVazio(conceitoId) {
-    const { data } = await supabase
+    const { data } = await _supabase
         .from("respostas")
         .select("id")
         .eq("conceito_id", conceitoId);
 
     if (!data || data.length === 0) {
-        await supabase
+        await _supabase
             .from("conceitos")
             .delete()
             .eq("id", conceitoId);
@@ -399,7 +399,7 @@ async function limparConceitoSeVazio(conceitoId) {
 async function buscarConceito(termo) {
     const termoNormalizado = normalizarTexto(termo);
 
-    const { data, error } = await supabase
+    const { data, error } = await _supabase
         .from("conceitos")
         .select("*")
         .eq("termo", termoNormalizado)
@@ -422,7 +422,7 @@ async function buscarConceito(termo) {
 async function criarConceito(termo) {
     const termoNormalizado = normalizarTexto(termo);
 
-    const { data, error } = await supabase
+    const { data, error } = await _supabase
         .from("conceitos")
         .insert({ termo: termoNormalizado })
         .select()
@@ -457,7 +457,7 @@ async function buscarOuCriarConceito(termo) {
 // ===============================
 
 async function buscarRespostas(conceitoId) {
-    const { data, error } = await supabase
+    const { data, error } = await _supabase
         .from("respostas")
         .select("*")
         .eq("conceito_id", conceitoId);
@@ -490,7 +490,7 @@ async function buscarRespostaPorTexto(conceitoId, texto) {
 async function criarOuReforcarTeia(idA, idB) {
     if (!idA || !idB || idA === idB) return;
 
-    const { data } = await supabase
+    const { data } = await _supabase
         .from("teia")
         .select("*")
         .or(`and(conceito_a.eq.${idA},conceito_b.eq.${idB}),and(conceito_a.eq.${idB},conceito_b.eq.${idA})`)
@@ -498,13 +498,13 @@ async function criarOuReforcarTeia(idA, idB) {
 
     if (data) {
         // já existe → reforça
-        await supabase
+        await _supabase
             .from("teia")
             .update({ forca: data.forca + 1 })
             .eq("id", data.id);
     } else {
         // não existe → cria
-        await supabase
+        await _supabase
             .from("teia")
             .insert({
                 conceito_a: idA,
@@ -520,7 +520,7 @@ async function criarOuReforcarTeia(idA, idB) {
 // ===============================
 
 async function buscarConexoes(conceitoId) {
-    const { data } = await supabase
+    const { data } = await _supabase
         .from("teia")
         .select("*")
         .or(`conceito_a.eq.${conceitoId},conceito_b.eq.${conceitoId}`);
@@ -548,7 +548,7 @@ async function obterConceitoRelacionado(conceitoId) {
             ? maisForte.conceito_b
             : maisForte.conceito_a;
 
-    const { data } = await supabase
+    const { data } = await _supabase
         .from("conceitos")
         .select("*")
         .eq("id", outroId)
@@ -805,7 +805,7 @@ async function realizarPodaNeuralAnual() {
     // ===============================
     // 📉 PODA RESPOSTAS
     // ===============================
-    const { data: respostas } = await supabase
+    const { data: respostas } = await _supabase
         .from("respostas")
         .select("*");
 
@@ -822,7 +822,7 @@ async function realizarPodaNeuralAnual() {
     // ===============================
     // 🔗 PODA TEIA
     // ===============================
-    const { data: teias } = await supabase
+    const { data: teias } = await _supabase
         .from("teia")
         .select("*");
 
@@ -830,12 +830,12 @@ async function realizarPodaNeuralAnual() {
         const novaForca = t.forca - 1;
 
         if (novaForca <= 0) {
-            await supabase
+            await _supabase
                 .from("teia")
                 .delete()
                 .eq("id", t.id);
         } else {
-            await supabase
+            await _supabase
                 .from("teia")
                 .update({ forca: novaForca })
                 .eq("id", t.id);
@@ -845,18 +845,18 @@ async function realizarPodaNeuralAnual() {
     // ===============================
     // 🧹 LIMPAR CONCEITOS VAZIOS
     // ===============================
-    const { data: conceitos } = await supabase
+    const { data: conceitos } = await _supabase
         .from("conceitos")
         .select("*");
 
     for (let c of conceitos) {
-        const { data: respostasDoConceito } = await supabase
+        const { data: respostasDoConceito } = await _supabase
             .from("respostas")
             .select("id")
             .eq("conceito_id", c.id);
 
         if (!respostasDoConceito || respostasDoConceito.length === 0) {
-            await supabase
+            await _supabase
                 .from("conceitos")
                 .delete()
                 .eq("id", c.id);
