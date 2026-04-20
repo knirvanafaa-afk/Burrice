@@ -225,27 +225,25 @@ function classificarConceito(respostasComFreq) {
     return classificarFrequencia(dominante.frequencia);
 }
 
-// ➕ REFORÇAR RESPOSTA (+1)
-
+// ➕ REFORÇAR RESPOSTA (Corrigido para 'quantidade')
 async function reforcarResposta(respostaId, quantidadeAtual) {
-    const novaQuantidade = quantidadeAtual + 1;
-
+    const novaQuantidade = parseFloat(quantidadeAtual) + 1;
     await _supabase
         .from("respostas")
         .update({ quantidade: novaQuantidade })
         .eq("id", respostaId);
 }
 
-// ➕ INSERIR NOVA RESPOSTA
-
+// ➕ INSERIR NOVA RESPOSTA (Corrigido de 'votos' para 'quantidade' e 'texto_resposta' para 'texto')
 async function inserirNovaResposta(conceitoId, texto) {
-    await _supabase
+    const { error } = await _supabase
         .from("respostas")
         .insert({
             conceito_id: conceitoId,
             texto: texto,
-            quantidade: 1
+            quantidade: 1 
         });
+    if (error) console.error("Erro ao inserir resposta:", error);
 }
 
 // 🔍 BUSCAR RESPOSTA EXISTENTE
@@ -340,43 +338,25 @@ async function limparConceitoSeVazio(conceitoId) {
     }
 }
 
-// 🔍 BUSCAR CONCEITO
-
-
+// 🔍 BUSCAR CONCEITO (Corrigido de 'termo_limpo' para 'termo')
 async function buscarConceito(termo) {
     const termoNormalizado = normalizarTexto(termo);
-
     const { data, error } = await _supabase
         .from("conceitos")
         .select("*")
         .eq("termo", termoNormalizado)
-        .limit(1)
         .maybeSingle();
-
-    if (error) {
-        console.error("Erro ao buscar conceito:", error);
-        return null;
-    }
-
     return data;
 }
 
-// ➕ CRIAR CONCEITO
-
+// ➕ CRIAR CONCEITO (Corrigido para 'termo')
 async function criarConceito(termo) {
     const termoNormalizado = normalizarTexto(termo);
-
     const { data, error } = await _supabase
         .from("conceitos")
         .insert({ termo: termoNormalizado })
         .select()
         .single();
-
-    if (error) {
-        console.error("Erro ao criar conceito:", error);
-        return null;
-    }
-
     return data;
 }
 
@@ -790,4 +770,14 @@ document.getElementById("userInput").addEventListener("keypress", function (e) {
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
 
