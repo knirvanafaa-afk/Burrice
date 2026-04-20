@@ -786,6 +786,18 @@ document.getElementById("userInput").addEventListener("keypress", function (e) {
     }
 });
 
+// Garante que o botão funcione no celular
+window.onload = () => {
+const botao = document.getElementById("btnEnviar");
+if (botao) {
+botao.onclick = (e) => {
+e.preventDefault();
+enviar();
+};
+}
+};
+
+
 </script>
 
 </body>
