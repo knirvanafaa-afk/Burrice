@@ -87,7 +87,7 @@
 // Configurações de Conexão
     const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===============================
 // 🧠 ESTADOS DO SISTEMA
@@ -152,6 +152,13 @@ let conceitoAnteriorId = null;
             "Saquei o ponto.", "Ok, faz todo o sentido.", "Justo!", "Tô contigo nessa.", "Saquei, pode continuar.",
             "Aham, compreendido.", "Bateu aqui, entendi.", "Certo, prossiga!"
         ]
+curiosidade: [
+    "O que você acha de",
+    "Você conhece",
+    "Já ouviu falar de",
+    "Me explica uma coisa sobre",
+    "Qual sua opinião sobre"
+]
     };
 
 // ===============================
@@ -395,7 +402,7 @@ async function buscarConceito(termo) {
     const { data, error } = await supabase
         .from("conceitos")
         .select("*")
-        .ilike("termo", termoNormalizado)
+        .eq("termo", termoNormalizado)
         .limit(1)
         .maybeSingle();
 
