@@ -81,17 +81,14 @@
 
     <script>
 
-    // ===============================
 // 🔧 CONFIGURAÇÃO SUPABASE
-// ===============================
+
 // Configurações de Conexão
     const SUPABASE_URL = 'https://tibbxblpnnqpbhhrzevr.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ===============================
 // 🧠 ESTADOS DO SISTEMA
-// ===============================
 
 // Quando TRUE → sistema está aprendendo um conceito novo
 let modoAprender = false;
@@ -101,12 +98,6 @@ let termoPendente = null;
 
 // Último conceito usado (para teia e contexto)
 let conceitoAnteriorId = null;
-
-
-// ===============================
-// 📚 VOCABULÁRIO BASE
-// (Você pode substituir depois pelo seu completo)
-// ===============================
 
 // --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) ---
     const VOCABULARIO = {
@@ -161,17 +152,13 @@ curiosidade: [
 ]
     };
 
-// ===============================
 // 🎲 UTILIDADE DE SORTEIO
-// (Usado apenas para frases, NÃO para lógica)
-// ===============================
+
 function sortear(lista) {
     return lista[Math.floor(Math.random() * lista.length)];
 }
 
-// ===============================
 // 🔤 NORMALIZAÇÃO DE TEXTO
-// ===============================
 
 function normalizarTexto(texto) {
     if (!texto) return "";
@@ -186,18 +173,13 @@ function normalizarTexto(texto) {
         .replace(/\s+/g, " "); // remove espaços duplicados
 }
 
-
-// ===============================
 // 🔎 COMPARAÇÃO SEGURA
-// ===============================
 
 function textosIguais(a, b) {
     return normalizarTexto(a) === normalizarTexto(b);
 }
 
-// ===============================
 // 📊 CALCULAR FREQUÊNCIAS
-// ===============================
 
 function calcularFrequencias(respostas) {
     const total = respostas.reduce((soma, r) => soma + r.quantidade, 0);
@@ -213,10 +195,7 @@ function calcularFrequencias(respostas) {
     });
 }
 
-
-// ===============================
 // 🧠 CLASSIFICAÇÃO DA FREQUÊNCIA
-// ===============================
 
 function classificarFrequencia(freq) {
     if (freq >= 0.8) return "matematico";
@@ -224,10 +203,7 @@ function classificarFrequencia(freq) {
     return "filosofico";
 }
 
-
-// ===============================
 // 🏆 OBTER RESPOSTA DOMINANTE
-// ===============================
 
 function obterRespostaDominante(respostas) {
     if (!respostas || respostas.length === 0) return null;
@@ -237,10 +213,7 @@ function obterRespostaDominante(respostas) {
     });
 }
 
-
-// ===============================
 // 📊 CLASSIFICAÇÃO DO CONCEITO
-// ===============================
 
 function classificarConceito(respostasComFreq) {
     if (!respostasComFreq.length) return "desconhecido";
@@ -252,9 +225,7 @@ function classificarConceito(respostasComFreq) {
     return classificarFrequencia(dominante.frequencia);
 }
 
-// ===============================
 // ➕ REFORÇAR RESPOSTA (+1)
-// ===============================
 
 async function reforcarResposta(respostaId, quantidadeAtual) {
     const novaQuantidade = quantidadeAtual + 1;
@@ -265,10 +236,7 @@ async function reforcarResposta(respostaId, quantidadeAtual) {
         .eq("id", respostaId);
 }
 
-
-// ===============================
 // ➕ INSERIR NOVA RESPOSTA
-// ===============================
 
 async function inserirNovaResposta(conceitoId, texto) {
     await _supabase
@@ -280,10 +248,7 @@ async function inserirNovaResposta(conceitoId, texto) {
         });
 }
 
-
-// ===============================
 // 🔍 BUSCAR RESPOSTA EXISTENTE
-// ===============================
 
 function encontrarRespostaExistente(respostas, texto) {
     return respostas.find(r =>
@@ -291,10 +256,7 @@ function encontrarRespostaExistente(respostas, texto) {
     );
 }
 
-
-// ===============================
 // 🧠 APRENDIZADO ATIVO
-// ===============================
 
 async function aprendizadoAtivo(conceitoId, respostas, textoUsuario) {
     const existente = encontrarRespostaExistente(respostas, textoUsuario);
@@ -306,10 +268,7 @@ async function aprendizadoAtivo(conceitoId, respostas, textoUsuario) {
     }
 }
 
-
-// ===============================
 // 🤝 CONFIRMAÇÃO (20%)
-// ===============================
 
 async function confirmacao(conceitoId, respostas, textoUsuario) {
     const existente = encontrarRespostaExistente(respostas, textoUsuario);
@@ -319,10 +278,7 @@ async function confirmacao(conceitoId, respostas, textoUsuario) {
     }
 }
 
-
-// ===============================
 // 🌱 APRENDIZADO PASSIVO (5%)
-// ===============================
 
 async function aprendizagemPassiva(conceitoId, respostas, textoUsuario) {
     const existente = encontrarRespostaExistente(respostas, textoUsuario);
@@ -349,10 +305,8 @@ async function aprendizagemPassiva(conceitoId, respostas, textoUsuario) {
     }
 }
 
-
-// ===============================
 // ✏️ ATUALIZAR QUANTIDADE
-// ===============================
+
 
 async function atualizarQuantidade(respostaId, quantidade) {
     await _supabase
@@ -361,10 +315,7 @@ async function atualizarQuantidade(respostaId, quantidade) {
         .eq("id", respostaId);
 }
 
-
-// ===============================
 // ❌ REMOVER RESPOSTA
-// ===============================
 
 async function removerResposta(respostaId) {
     await _supabase
@@ -373,10 +324,7 @@ async function removerResposta(respostaId) {
         .eq("id", respostaId);
 }
 
-
-// ===============================
 // 🧹 LIMPAR CONCEITO VAZIO
-// ===============================
 
 async function limparConceitoSeVazio(conceitoId) {
     const { data } = await _supabase
@@ -392,9 +340,8 @@ async function limparConceitoSeVazio(conceitoId) {
     }
 }
 
-// ===============================
 // 🔍 BUSCAR CONCEITO
-// ===============================
+
 
 async function buscarConceito(termo) {
     const termoNormalizado = normalizarTexto(termo);
@@ -414,10 +361,7 @@ async function buscarConceito(termo) {
     return data;
 }
 
-
-// ===============================
 // ➕ CRIAR CONCEITO
-// ===============================
 
 async function criarConceito(termo) {
     const termoNormalizado = normalizarTexto(termo);
@@ -436,10 +380,7 @@ async function criarConceito(termo) {
     return data;
 }
 
-
-// ===============================
 // 🔁 BUSCAR OU CRIAR CONCEITO
-// ===============================
 
 async function buscarOuCriarConceito(termo) {
     let conceito = await buscarConceito(termo);
@@ -451,10 +392,7 @@ async function buscarOuCriarConceito(termo) {
     return conceito;
 }
 
-
-// ===============================
 // 📥 BUSCAR RESPOSTAS DO CONCEITO
-// ===============================
 
 async function buscarRespostas(conceitoId) {
     const { data, error } = await _supabase
@@ -470,10 +408,7 @@ async function buscarRespostas(conceitoId) {
     return data || [];
 }
 
-
-// ===============================
 // 🔍 BUSCAR RESPOSTA ESPECÍFICA
-// ===============================
 
 async function buscarRespostaPorTexto(conceitoId, texto) {
     const respostas = await buscarRespostas(conceitoId);
@@ -483,9 +418,8 @@ async function buscarRespostaPorTexto(conceitoId, texto) {
     );
 }
 
-// ===============================
 // 🔗 CRIAR OU REFORÇAR CONEXÃO
-// ===============================
+
 
 async function criarOuReforcarTeia(idA, idB) {
     if (!idA || !idB || idA === idB) return;
@@ -514,10 +448,8 @@ async function criarOuReforcarTeia(idA, idB) {
     }
 }
 
-
-// ===============================
 // 🔍 BUSCAR CONEXÕES FORTES
-// ===============================
+
 
 async function buscarConexoes(conceitoId) {
     const { data } = await _supabase
@@ -528,10 +460,8 @@ async function buscarConexoes(conceitoId) {
     return data || [];
 }
 
-
-// ===============================
 // 🧠 OBTER CONCEITO RELACIONADO
-// ===============================
+
 
 async function obterConceitoRelacionado(conceitoId) {
     const conexoes = await buscarConexoes(conceitoId);
@@ -557,46 +487,32 @@ async function obterConceitoRelacionado(conceitoId) {
     return data || null;
 }
 
-// ===============================
 // ❓ PERGUNTA OBRIGATÓRIA
-// ===============================
 
 function perguntaObrigatoria() {
     modoAprender = true;
     return sortear(VOCABULARIO.naoSabe);
 }
 
-
-// ===============================
 // 🤝 DECIDIR CONFIRMAÇÃO (20%)
-// ===============================
 
 function deveConfirmar() {
     return Math.random() < 0.2;
 }
 
-
-// ===============================
-// 🌱 DECIDIR APRENDIZAGEM PASSIVA (5%)
-// ===============================
+//DECIDIR APRENDIZAGEM PASSIVA (5%)
 
 function deveAprenderPassivo() {
     return Math.random() < 0.05;
 }
 
-
-// ===============================
 // 🧠 DECIDIR CURIOSIDADE (20%)
-// ===============================
 
 function devePerguntarCuriosidade() {
     return Math.random() < 0.2;
 }
 
-
-// ===============================
-// ❓ GERAR PERGUNTA DE CURIOSIDADE
-// ===============================
+// GERAR PERGUNTA DE CURIOSIDADE
 
 async function gerarPerguntaCuriosidade(conceitoId) {
     const relacionado = await obterConceitoRelacionado(conceitoId);
@@ -606,9 +522,8 @@ async function gerarPerguntaCuriosidade(conceitoId) {
     return `${sortear(VOCABULARIO.curiosidade)} (${relacionado.termo})`;
 }
 
-// ===============================
 // 🧠 DECIDIR RESPOSTA PRINCIPAL
-// ===============================
+
 
 function escolherResposta(respostasComFreq) {
     if (!respostasComFreq.length) return null;
@@ -619,9 +534,8 @@ function escolherResposta(respostasComFreq) {
 
     const tipo = classificarFrequencia(dominante.frequencia);
 
-    // ===============================
     // MATEMÁTICO
-    // ===============================
+
     if (tipo === "matematico") {
         return {
             tipo,
@@ -629,9 +543,8 @@ function escolherResposta(respostasComFreq) {
         };
     }
 
-    // ===============================
     // HUMANO
-    // ===============================
+
     if (tipo === "humano") {
         const respostasValidas = respostasComFreq
             .filter(r => r.frequencia >= 0.4)
@@ -643,9 +556,8 @@ function escolherResposta(respostasComFreq) {
         };
     }
 
-    // ===============================
     // FILOSÓFICO
-    // ===============================
+
     const respostasFracas = respostasComFreq.map(r => r.texto);
 
     return {
@@ -655,10 +567,8 @@ function escolherResposta(respostasComFreq) {
     };
 }
 
-
-// ===============================
 // 🗣️ FORMATAR RESPOSTA FINAL
-// ===============================
+
 
 function montarRespostaFinal(decisao) {
     if (!decisao) return "Não sei.";
@@ -675,9 +585,8 @@ function montarRespostaFinal(decisao) {
     return `${decisao.resposta}... mas não tenho certeza`;
 }
 
-// ===============================
 // 🚀 FUNÇÃO PRINCIPAL
-// ===============================
+
 
 async function enviar() {
     const input = document.getElementById("userInput");
@@ -690,18 +599,17 @@ async function enviar() {
 
     const texto = normalizarTexto(textoOriginal);
 
-    // ===============================
     // 🌳 COMANDO ESPECIAL (PODA)
-    // ===============================
+
     if (texto === "executar_poda_anual") {
         await realizarPodaNeuralAnual();
         adicionarMensagem("Poda realizada.", "ba");
         return;
     }
 
-    // ===============================
+
     // 📚 MODO APRENDER
-    // ===============================
+
     if (modoAprender && termoPendente) {
         const conceito = await buscarOuCriarConceito(termoPendente);
         const respostas = await buscarRespostas(conceito.id);
@@ -715,14 +623,12 @@ async function enviar() {
         return;
     }
 
-    // ===============================
     // 🔍 BUSCAR CONCEITO
-    // ===============================
+
     let conceito = await buscarConceito(texto);
 
-    // ===============================
     // ❓ NÃO EXISTE → PERGUNTA
-    // ===============================
+
     if (!conceito) {
         modoAprender = true;
         termoPendente = textoOriginal;
@@ -731,9 +637,8 @@ async function enviar() {
         return;
     }
 
-    // ===============================
     // 📥 BUSCAR RESPOSTAS
-    // ===============================
+
     let respostas = await buscarRespostas(conceito.id);
 
     if (!respostas.length) {
@@ -743,10 +648,9 @@ async function enviar() {
         adicionarMensagem(perguntaObrigatoria(), "ba");
         return;
     }
-
-    // ===============================
-    // 📊 FREQUÊNCIA E CLASSIFICAÇÃO
-    // ===============================
+ 
+  // 📊 FREQUÊNCIA E CLASSIFICAÇÃO
+   
     const respostasComFreq = calcularFrequencias(respostas);
 
     const decisao = escolherResposta(respostasComFreq);
@@ -755,18 +659,16 @@ async function enviar() {
 
     adicionarMensagem(respostaFinal, "ba");
 
-    // ===============================
     // 🔁 ATUALIZA TEIA
-    // ===============================
+    
     if (conceitoAnteriorId) {
         await criarOuReforcarTeia(conceitoAnteriorId, conceito.id);
     }
 
     conceitoAnteriorId = conceito.id;
 
-    // ===============================
     // ❓ CONFIRMAÇÃO (20%)
-    // ===============================
+  
     if (deveConfirmar()) {
         adicionarMensagem("Isso está correto?", "ba");
         modoAprender = true;
@@ -774,9 +676,8 @@ async function enviar() {
         return;
     }
 
-    // ===============================
     // 🌱 APRENDIZAGEM PASSIVA (5%)
-    // ===============================
+   
     if (deveAprenderPassivo()) {
         adicionarMensagem("Pode confirmar isso?", "ba");
         modoAprender = true;
@@ -784,9 +685,8 @@ async function enviar() {
         return;
     }
 
-    // ===============================
     // 🧠 CURIOSIDADE (20%)
-    // ===============================
+   
     if (devePerguntarCuriosidade()) {
         const pergunta = await gerarPerguntaCuriosidade(conceito.id);
 
@@ -796,15 +696,12 @@ async function enviar() {
     }
 }
 
-// ===============================
 // 🌳 PODA NEURAL ANUAL
-// ===============================
 
 async function realizarPodaNeuralAnual() {
 
-    // ===============================
     // 📉 PODA RESPOSTAS
-    // ===============================
+   
     const { data: respostas } = await _supabase
         .from("respostas")
         .select("*");
@@ -819,9 +716,8 @@ async function realizarPodaNeuralAnual() {
         }
     }
 
-    // ===============================
     // 🔗 PODA TEIA
-    // ===============================
+   
     const { data: teias } = await _supabase
         .from("teia")
         .select("*");
@@ -842,9 +738,8 @@ async function realizarPodaNeuralAnual() {
         }
     }
 
-    // ===============================
     // 🧹 LIMPAR CONCEITOS VAZIOS
-    // ===============================
+   
     const { data: conceitos } = await _supabase
         .from("conceitos")
         .select("*");
@@ -864,9 +759,7 @@ async function realizarPodaNeuralAnual() {
     }
 }
 
-// ===============================
 // 💬 ADICIONAR MENSAGEM NO CHAT
-// ===============================
 
 function adicionarMensagem(texto, tipo) {
     const chat = document.getElementById("chat");
@@ -881,17 +774,11 @@ function adicionarMensagem(texto, tipo) {
     chat.scrollTop = chat.scrollHeight;
 }
 
-
-// ===============================
 // ⌨️ EVENTO BOTÃO
-// ===============================
 
 document.getElementById("btnEnviar").addEventListener("click", enviar);
 
-
-// ===============================
 // ⌨️ EVENTO ENTER
-// ===============================
 
 document.getElementById("userInput").addEventListener("keypress", function (e) {
     if (e.key === "Enter") {
