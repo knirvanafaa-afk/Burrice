@@ -774,6 +774,37 @@ function adicionarMensagem(texto, tipo) {
     chat.scrollTop = chat.scrollHeight;
 }
 
+// Unificação de eventos para funcionar 100% no celular
+    const configurarGatilhos = () => {
+        const campo = document.getElementById("userInput");
+        const botao = document.getElementById("btnEnviar");
+
+        if (botao) {
+            botao.onclick = (e) => { 
+                e.preventDefault(); 
+                enviar(); 
+            };
+        }
+
+        if (campo) {
+            campo.onkeypress = (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    enviar();
+                }
+            };
+        }
+    };
+
+    window.onload = configurarGatilhos;
+
+</script>
+
+</body>
+</html>
+
+#######
+
 // ⌨️ EVENTO BOTÃO
 
 document.getElementById("btnEnviar").addEventListener("click", enviar);
@@ -786,19 +817,3 @@ document.getElementById("userInput").addEventListener("keypress", function (e) {
     }
 });
 
-// Garante que o botão funcione no celular
-window.onload = () => {
-const botao = document.getElementById("btnEnviar");
-if (botao) {
-botao.onclick = (e) => {
-e.preventDefault();
-enviar();
-};
-}
-};
-
-
-</script>
-
-</body>
-</html>
