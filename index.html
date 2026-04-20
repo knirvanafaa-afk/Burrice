@@ -225,7 +225,7 @@ function classificarConceito(respostasComFreq) {
     return classificarFrequencia(dominante.frequencia);
 }
 
-// ➕ REFORÇAR RESPOSTA (Corrigido para 'quantidade')
+// ➕ REFORÇAR RESPOSTA (Usa QUANTIDADE)
 async function reforcarResposta(respostaId, quantidadeAtual) {
     const novaQuantidade = parseFloat(quantidadeAtual) + 1;
     await _supabase
@@ -234,9 +234,7 @@ async function reforcarResposta(respostaId, quantidadeAtual) {
         .eq("id", respostaId);
 }
 
-// ➕ INSERIR NOVA RESPOSTA
-
-// 1. Corrigindo a gravação da RESPOSTA (Usa QUANTIDADE)
+// ➕ GRAVAR RESPOSTA (Usa QUANTIDADE para o cálculo de confiança)
 async function inserirNovaResposta(conceitoId, texto) {
     const { error } = await _supabase
         .from("respostas")
@@ -245,7 +243,7 @@ async function inserirNovaResposta(conceitoId, texto) {
             texto: texto,
             quantidade: 1 
         });
-    if (error) console.error("Erro ao inserir:", error);
+    if (error) console.error("Erro fatal ao gravar resposta:", error);
 }
 
 // 🔍 BUSCAR RESPOSTA EXISTENTE
@@ -402,8 +400,7 @@ async function buscarRespostaPorTexto(conceitoId, texto) {
 
 // 🔗 CRIAR OU REFORÇAR CONEXÃO
 
-// 2. Corrigindo a gravação da TEIA (Usa VOTOS)
-
+// 🔗 GRAVAR NA TEIA (Usa VOTOS para Silogismos)
 async function criarOuReforcarTeia(idA, idB) {
     if (!idA || !idB || idA === idB) return;
     const { data } = await _supabase
@@ -414,7 +411,7 @@ async function criarOuReforcarTeia(idA, idB) {
 
     if (data) {
         await _supabase.from("teia")
-            .update({ votos: data.votos + 1 }) // Nome corrigido para 'votos'
+            .update({ votos: data.votos + 1 })
             .eq("id", data.id);
     } else {
         await _supabase.from("teia")
@@ -423,7 +420,6 @@ async function criarOuReforcarTeia(idA, idB) {
 }
 
 // 🔍 BUSCAR CONEXÕES FORTES
-
 
 async function buscarConexoes(conceitoId) {
     const { data } = await _supabase
@@ -764,6 +760,7 @@ document.getElementById("userInput").addEventListener("keypress", function (e) {
 
 </body>
 </html>
+
 
 
 
