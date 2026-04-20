@@ -234,7 +234,9 @@ async function reforcarResposta(respostaId, quantidadeAtual) {
         .eq("id", respostaId);
 }
 
-// ➕ INSERIR NOVA RESPOSTA (Corrigido de 'votos' para 'quantidade' e 'texto_resposta' para 'texto')
+// ➕ INSERIR NOVA RESPOSTA
+
+// 1. Corrigindo a gravação da RESPOSTA (Usa QUANTIDADE)
 async function inserirNovaResposta(conceitoId, texto) {
     const { error } = await _supabase
         .from("respostas")
@@ -243,7 +245,7 @@ async function inserirNovaResposta(conceitoId, texto) {
             texto: texto,
             quantidade: 1 
         });
-    if (error) console.error("Erro ao inserir resposta:", error);
+    if (error) console.error("Erro ao inserir:", error);
 }
 
 // 🔍 BUSCAR RESPOSTA EXISTENTE
@@ -400,10 +402,10 @@ async function buscarRespostaPorTexto(conceitoId, texto) {
 
 // 🔗 CRIAR OU REFORÇAR CONEXÃO
 
+// 2. Corrigindo a gravação da TEIA (Usa VOTOS)
 
 async function criarOuReforcarTeia(idA, idB) {
     if (!idA || !idB || idA === idB) return;
-
     const { data } = await _supabase
         .from("teia")
         .select("*")
@@ -411,20 +413,12 @@ async function criarOuReforcarTeia(idA, idB) {
         .maybeSingle();
 
     if (data) {
-        // já existe → reforça
-        await _supabase
-            .from("teia")
-            .update({ forca: data.forca + 1 })
+        await _supabase.from("teia")
+            .update({ votos: data.votos + 1 }) // Nome corrigido para 'votos'
             .eq("id", data.id);
     } else {
-        // não existe → cria
-        await _supabase
-            .from("teia")
-            .insert({
-                conceito_a: idA,
-                conceito_b: idB,
-                forca: 1
-            });
+        await _supabase.from("teia")
+            .insert({ conceito_a: idA, conceito_b: idB, votos: 1 });
     }
 }
 
