@@ -99,6 +99,9 @@ let termoPendente = null;
 // Último conceito usado (para teia e contexto)
 let conceitoAnteriorId = null;
 
+// aprendizado sequencial 
+let ultimaRespostaOmega = null;
+
 // --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) ---
     const VOCABULARIO = {
         naoSabe: [
@@ -434,13 +437,13 @@ async function buscarConexoes(conceitoId) {
 
 
 async function obterConceitoRelacionado(conceitoId) {
+
     const conexoes = await buscarConexoes(conceitoId);
 
     if (!conexoes.length) return null;
 
-    // pega conexão mais forte
     const maisForte = conexoes.reduce((max, atual) => {
-        return atual.forca > max.forca ? atual : max;
+        return atual.votos > max.votos ? atual : max;
     });
 
     const outroId =
@@ -496,6 +499,7 @@ async function gerarPerguntaCuriosidade(conceitoId) {
 
 
 function escolherResposta(respostasComFreq) {
+
     if (!respostasComFreq.length) return null;
 
     const dominante = obterRespostaDominante(respostasComFreq);
@@ -504,36 +508,10 @@ function escolherResposta(respostasComFreq) {
 
     const tipo = classificarFrequencia(dominante.frequencia);
 
-    // MATEMÁTICO
-
-    if (tipo === "matematico") {
-        return {
-            tipo,
-            resposta: dominante.texto
-        };
-    }
-
-    // HUMANO
-
-    if (tipo === "humano") {
-        const respostasValidas = respostasComFreq
-            .filter(r => r.frequencia >= 0.4)
-            .map(r => r.texto);
-
-        return {
-            tipo,
-            resposta: sortear(respostasValidas)
-        };
-    }
-
-    // FILOSÓFICO
-
-    const respostasFracas = respostasComFreq.map(r => r.texto);
-
     return {
-        tipo: "filosofico",
-        resposta: sortear(respostasFracas),
-        duvida: true
+        tipo,
+        resposta: dominante.texto,
+        duvida: tipo === "filosofico"
     };
 }
 
@@ -541,18 +519,14 @@ function escolherResposta(respostasComFreq) {
 
 
 function montarRespostaFinal(decisao) {
+
     if (!decisao) return "Não sei.";
 
-    if (decisao.tipo === "matematico") {
-        return decisao.resposta;
+    if (decisao.tipo === "filosofico") {
+        return `${decisao.resposta}, mas não tenho certeza. O que você acha?`;
     }
 
-    if (decisao.tipo === "humano") {
-        return decisao.resposta;
-    }
-
-    // filosófico
-    return `${decisao.resposta}... mas não tenho certeza`;
+    return decisao.resposta;
 }
 
 // 🚀 FUNÇÃO PRINCIPAL
@@ -565,6 +539,10 @@ async function enviar() {
     if (!textoOriginal.trim()) return;
 
     adicionarMensagem(textoOriginal, "user");
+
+// ✅ APRENDIZADO DE SEQUÊNCIA
+await aprenderSequencia(textoOriginal);
+
     input.value = "";
 
     const texto = normalizarTexto(textoOriginal);
@@ -688,25 +666,30 @@ async function realizarPodaNeuralAnual() {
 
     // 🔗 PODA TEIA
    
-    const { data: teias } = await _supabase
-        .from("teia")
-        .select("*");
+    // 🔗 PODA TEIA
+const { data: teias } = await _supabase
+    .from("teia")
+    .select("*");
 
-    for (let t of teias) {
-        const novaForca = t.forca - 1;
+for (let t of teias) {
 
-        if (novaForca <= 0) {
-            await _supabase
-                .from("teia")
-                .delete()
-                .eq("id", t.id);
-        } else {
-            await _supabase
-                .from("teia")
-                .update({ forca: novaForca })
-                .eq("id", t.id);
-        }
+    const novosVotos = t.votos - 1;
+
+    if (novosVotos <= 0) {
+
+        await _supabase
+            .from("teia")
+            .delete()
+            .eq("id", t.id);
+
+    } else {
+
+        await _supabase
+            .from("teia")
+            .update({ votos: novosVotos })
+            .eq("id", t.id);
     }
+}
 
     // 🧹 LIMPAR CONCEITOS VAZIOS
    
@@ -732,16 +715,23 @@ async function realizarPodaNeuralAnual() {
 // 💬 ADICIONAR MENSAGEM NO CHAT
 
 function adicionarMensagem(texto, tipo) {
+
     const chat = document.getElementById("chat");
 
     const div = document.createElement("div");
+
     div.classList.add("msg", tipo);
+
     div.textContent = texto;
 
     chat.appendChild(div);
 
-    // scroll automático
     chat.scrollTop = chat.scrollHeight;
+
+    // ✅ CAPTURA RESPOSTA DO ÔMEGA (IMPORTANTE)
+    if (tipo === "ba") {
+        ultimaRespostaOmega = texto;
+    }
 }
 
 // ⌨️ EVENTO BOTÃO
@@ -756,19 +746,31 @@ document.getElementById("userInput").addEventListener("keypress", function (e) {
     }
 });
 
+async function aprenderSequencia(textoUsuario) {
+
+    try {
+
+        if (!ultimaRespostaOmega) return;
+
+        const conceito = await buscarOuCriarConceito(ultimaRespostaOmega);
+
+        const respostas = await buscarRespostas(conceito.id);
+
+        const existente = encontrarRespostaExistente(respostas, textoUsuario);
+
+        if (existente) {
+            await reforcarResposta(existente.id, existente.quantidade);
+        } else {
+            await inserirNovaResposta(conceito.id, textoUsuario);
+        }
+
+    } catch (e) {
+        console.error("Erro aprendizado sequencial:", e);
+    }
+}
+
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
 
