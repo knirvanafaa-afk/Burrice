@@ -585,20 +585,51 @@ async function gerarPerguntaCuriosidade(conceitoId) {
 // 🧠 DECIDIR RESPOSTA PRINCIPAL
 
 
-function escolherResposta(respostasComFreq) {
+async function escolherResposta(conceitoId, respostasComFreq) {
 
     if (!respostasComFreq.length) return null;
 
+    // 🏆 resposta direta (base)
     const dominante = obterRespostaDominante(respostasComFreq);
 
-    if (!dominante) return null;
+    let melhorResposta = dominante;
+    let melhorScore = dominante ? dominante.quantidade : 0;
 
-    const tipo = classificarFrequencia(dominante.frequencia);
+    // 🔗 buscar conexões da teia
+    const conexoes = await buscarConexoes(conceitoId);
+
+    for (let conexao of conexoes) {
+
+        const outroId =
+            conexao.conceito_a === conceitoId
+                ? conexao.conceito_b
+                : conexao.conceito_a;
+
+        const respostasRelacionadas = await buscarRespostas(outroId);
+
+        for (let r of respostasRelacionadas) {
+
+            const score = (r.quantidade || 1) + (conexao.votos || 0);
+
+            if (score > melhorScore) {
+                melhorScore = score;
+                melhorResposta = r;
+            }
+        }
+    }
+
+    if (!melhorResposta) return null;
+
+    const freqBase = melhorResposta.quantidade || 1;
+    const freqFake = freqBase / (freqBase + 1);
+
+    const tipo = classificarFrequencia(freqFake);
 
     return {
         tipo,
-        resposta: dominante.texto,
-        duvida: tipo === "filosofico"
+        resposta: melhorResposta.texto,
+        duvida: tipo === "filosofico",
+        origem: melhorResposta === dominante ? "direta" : "teia"
     };
 }
 
@@ -695,7 +726,7 @@ await aprenderSequencia(textoOriginal);
    
     const respostasComFreq = calcularFrequencias(respostas);
 
-    const decisao = escolherResposta(respostasComFreq);
+    const decisao = await escolherResposta(conceito.id, respostasComFreq);
 
     const respostaFinal = montarRespostaFinal(decisao);
 
