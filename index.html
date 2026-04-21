@@ -599,7 +599,7 @@ async function escolherResposta(conceitoId, respostasComFreq) {
     let melhorScore = dominante ? dominante.quantidade : 0;
 
     // 🔗 buscar conexões da teia
-    const conexoes = await buscarConexoes(conceitoId);
+    const conexoes = await buscarConexoes(conceitoId) || [];
 
     for (let conexao of conexoes) {
 
@@ -608,7 +608,7 @@ async function escolherResposta(conceitoId, respostasComFreq) {
                 ? conexao.conceito_b
                 : conexao.conceito_a;
 
-       let respostasRelacionadas = await buscarRespostas(outroId);
+       let respostasRelacionadas = await buscarRespostas(outroId) || [];
 
 if (!respostasRelacionadas.length) {
     respostasRelacionadas = [{
