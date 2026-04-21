@@ -605,7 +605,7 @@ async function gerarPerguntaCuriosidade(conceitoId) {
 
     if (!relacionado) return null;
 
-    return `${sortear(VOCABULARIO.curiosidade)} (${relacionado.termo})`;
+    return `${sortear(VOCABULARIO.curiosidade)} ${relacionado.termo}`;
 }
 
 // 🧠 DECIDIR RESPOSTA PRINCIPAL
