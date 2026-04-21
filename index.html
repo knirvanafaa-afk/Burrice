@@ -99,6 +99,9 @@ let termoPendente = null;
 // Último conceito usado (para teia e contexto)
 let conceitoAnteriorId = null;
 
+// evita amnésia 
+let ultimoConceito = null;
+
 // aprendizado sequencial 
 let ultimaRespostaOmega = null;
 
@@ -605,7 +608,14 @@ async function escolherResposta(conceitoId, respostasComFreq) {
                 ? conexao.conceito_b
                 : conexao.conceito_a;
 
-        const respostasRelacionadas = await buscarRespostas(outroId);
+       let respostasRelacionadas = await buscarRespostas(outroId);
+
+if (!respostasRelacionadas.length) {
+    respostasRelacionadas = [{
+        texto: "relacionado",
+        quantidade: conexao.votos || 1
+    }];
+}
 
         for (let r of respostasRelacionadas) {
 
@@ -652,25 +662,36 @@ function montarRespostaFinal(decisao) {
 
 async function enviar() {
     const input = document.getElementById("userInput");
-    const textoOriginal = input.value;
+    
+const textoOriginal = input.value;
 
-    if (!textoOriginal.trim()) return;
+if (!textoOriginal.trim()) return;
 
-    adicionarMensagem(textoOriginal, "user");
+adicionarMensagem(textoOriginal, "user");
 
-// ✅ APRENDIZADO DE SEQUÊNCIA
-await aprenderSequencia(textoOriginal);
+input.value = "";
 
-    input.value = "";
+// 🔥 quebra em partes
+const partes = quebrarFrases(textoOriginal);
 
-    const texto = normalizarTexto(textoOriginal);
+// 🔁 processa cada parte corretamente
+for (let parte of partes) {
+
+    const textoOriginalParte = parte;
+    const texto = normalizarTexto(textoOriginalParte);
+
+    // ✅ aprendizado sequencial por parte
+    await aprenderSequencia(textoOriginalParte);
+
+    // 👉 daqui pra frente usa "texto" e "textoOriginalParte"
+
 
     // 🌳 COMANDO ESPECIAL (PODA)
 
     if (texto === "executar_poda_anual") {
         await realizarPodaNeuralAnual();
         adicionarMensagem("Poda realizada.", "ba");
-        return;
+        continue;
     }
 
 
@@ -680,11 +701,19 @@ await aprenderSequencia(textoOriginal);
     const conceito = await buscarOuCriarConceito(termoPendente);
     const respostas = await buscarRespostas(conceito.id);
 
-    await aprendizadoAtivo(conceito.id, respostas, textoOriginal);
+    await aprendizadoAtivo(conceito.id, respostas, textoOriginalParte);
 
     // 🔗 ATIVA TEIA DURANTE APRENDIZADO
     if (conceitoAnteriorId) {
-        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginal);
+        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginalParte);
+
+// 🔥 memória curta (complemento, não substituição)
+if (ultimoConceito && ultimoConceito !== conceito.id) {
+    await criarOuReforcarTeia(ultimoConceito, conceito.id, textoOriginalParte);
+}
+
+ultimoConceito = conceito.id;
+
     }
 
     conceitoAnteriorId = conceito.id;
@@ -693,7 +722,7 @@ await aprenderSequencia(textoOriginal);
     termoPendente = null;
 
     adicionarMensagem(sortear(VOCABULARIO.aprendeu), "ba");
-    return;
+    continue;
 }
 
     // 🔍 BUSCAR CONCEITO
@@ -704,10 +733,10 @@ await aprenderSequencia(textoOriginal);
 
     if (!conceito) {
         modoAprender = true;
-        termoPendente = textoOriginal;
+        termoPendente = textoOriginalParte;
 
         adicionarMensagem(perguntaObrigatoria(), "ba");
-        return;
+        continue;
     }
 
     // 📥 BUSCAR RESPOSTAS
@@ -719,7 +748,7 @@ await aprenderSequencia(textoOriginal);
         termoPendente = textoOriginal;
 
         adicionarMensagem(perguntaObrigatoria(), "ba");
-        return;
+        continue;
     }
  
   // 📊 FREQUÊNCIA E CLASSIFICAÇÃO
@@ -745,8 +774,8 @@ await aprenderSequencia(textoOriginal);
     if (deveConfirmar()) {
         adicionarMensagem("Isso está correto?", "ba");
         modoAprender = true;
-        termoPendente = textoOriginal;
-        return;
+        termoPendente = textoOriginalParte;
+        continue;
     }
 
     // 🌱 APRENDIZAGEM PASSIVA (5%)
@@ -754,8 +783,8 @@ await aprenderSequencia(textoOriginal);
     if (deveAprenderPassivo()) {
         adicionarMensagem("Pode confirmar isso?", "ba");
         modoAprender = true;
-        termoPendente = textoOriginal;
-        return;
+        termoPendente = textoOriginalParte;
+        continue;
     }
 
     // 🧠 CURIOSIDADE (20%)
@@ -765,8 +794,9 @@ await aprenderSequencia(textoOriginal);
 
         if (pergunta) {
             adicionarMensagem(pergunta, "ba");
-        }
-    }
+           }
+       }
+   }
 }
 
 // 🌳 PODA NEURAL ANUAL
