@@ -229,6 +229,7 @@ function classificarConceito(respostasComFreq) {
 }
 
 // ➕ REFORÇAR RESPOSTA (Usa QUANTIDADE)
+
 async function reforcarResposta(respostaId, quantidadeAtual) {
     const novaQuantidade = parseFloat(quantidadeAtual) + 1;
     await _supabase
@@ -645,17 +646,24 @@ await aprenderSequencia(textoOriginal);
     // 📚 MODO APRENDER
 
     if (modoAprender && termoPendente) {
-        const conceito = await buscarOuCriarConceito(termoPendente);
-        const respostas = await buscarRespostas(conceito.id);
+    const conceito = await buscarOuCriarConceito(termoPendente);
+    const respostas = await buscarRespostas(conceito.id);
 
-        await aprendizadoAtivo(conceito.id, respostas, textoOriginal);
+    await aprendizadoAtivo(conceito.id, respostas, textoOriginal);
 
-        modoAprender = false;
-        termoPendente = null;
-
-        adicionarMensagem(sortear(VOCABULARIO.aprendeu), "ba");
-        return;
+    // 🔗 ATIVA TEIA DURANTE APRENDIZADO
+    if (conceitoAnteriorId) {
+        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginal);
     }
+
+    conceitoAnteriorId = conceito.id;
+
+    modoAprender = false;
+    termoPendente = null;
+
+    adicionarMensagem(sortear(VOCABULARIO.aprendeu), "ba");
+    return;
+}
 
     // 🔍 BUSCAR CONCEITO
 
