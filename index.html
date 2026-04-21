@@ -575,6 +575,29 @@ function devePerguntarCuriosidade() {
     return Math.random() < 0.2;
 }
 
+// FUNCAO CONCEITO RELACIONADO
+
+async function obterConceitoRelacionado(conceitoId) {
+    const conexoes = await buscarConexoes(conceitoId);
+
+    if (!conexoes.length) return null;
+
+    const aleatoria = conexoes[Math.floor(Math.random() * conexoes.length)];
+
+    const outroId =
+        aleatoria.conceito_a === conceitoId
+            ? aleatoria.conceito_b
+            : aleatoria.conceito_a;
+
+    const { data } = await _supabase
+        .from("conceitos")
+        .select("*")
+        .eq("id", outroId)
+        .single();
+
+    return data;
+}
+
 // GERAR PERGUNTA DE CURIOSIDADE
 
 async function gerarPerguntaCuriosidade(conceitoId) {
@@ -655,6 +678,15 @@ function montarRespostaFinal(decisao) {
     }
 
     return decisao.resposta;
+}
+
+//QUEBRAR FRASES TEIA
+
+function quebrarFrases(texto) {
+    return texto
+        .split(/[.!?]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
 }
 
 // 🚀 FUNÇÃO PRINCIPAL
