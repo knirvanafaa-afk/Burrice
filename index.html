@@ -279,8 +279,20 @@ async function confirmacao(conceitoId, respostas, textoUsuario) {
     const existente = encontrarRespostaExistente(respostas, textoUsuario);
 
     if (existente) {
-        await reforcarResposta(existente.id, existente.quantidade);
+
+    let incremento = 1;
+
+    // se veio fraco (sequencial), promove parcialmente
+    if (existente.quantidade < 1) {
+        incremento = 0.3; // 👈 use 0.3 para teste mais conservador
     }
+
+    await atualizarQuantidade(
+        existente.id,
+        existente.quantidade + incremento
+    );
+}
+
 }
 
 // 🌱 APRENDIZADO PASSIVO (5%)
@@ -967,7 +979,15 @@ async function aprenderSequencia(textoUsuario) {
         if (existente) {
             await reforcarResposta(existente.id, existente.quantidade);
         } else {
-            await inserirNovaResposta(conceito.id, textoUsuario);
+
+            await _supabase
+    .from("respostas")
+    .insert({
+        conceito_id: conceito.id,
+        texto: textoUsuario,
+        quantidade: 0.1
+    });
+
         }
 
     } catch (e) {
