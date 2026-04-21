@@ -404,6 +404,7 @@ async function buscarRespostaPorTexto(conceitoId, texto) {
 // 🔗 CRIAR OU REFORÇAR CONEXÃO
 
 // 🔗 GRAVAR NA TEIA (Usa VOTOS para Silogismos)
+
 async function criarOuReforcarTeia(idA, idB) {
     if (!idA || !idB || idA === idB) return;
     const { data } = await _supabase
@@ -436,28 +437,113 @@ async function buscarConexoes(conceitoId) {
 // 🧠 OBTER CONCEITO RELACIONADO
 
 
-async function obterConceitoRelacionado(conceitoId) {
+async function criarOuReforcarTeia(idA, idB, texto = "") {
 
-    const conexoes = await buscarConexoes(conceitoId);
+    if (!idA || !idB || idA === idB) return;
 
-    if (!conexoes.length) return null;
+    // 🔤 normaliza texto
+    const t = normalizarTexto(texto);
 
-    const maisForte = conexoes.reduce((max, atual) => {
-        return atual.votos > max.votos ? atual : max;
-    });
+    // 📉 fator de força (base)
+    let fator = 1;
 
-    const outroId =
-        maisForte.conceito_a === conceitoId
-            ? maisForte.conceito_b
-            : maisForte.conceito_a;
+    // 🔻 redução de força por negação implícita (sem classificar fixo)
+    if (t.includes("nao") || t.includes("nunca") || t.includes("jamais")) {
+        fator = -1; // afasta
+    }
 
+    // 🔺 leve reforço por afirmação natural
+    if (
+        t.includes("sim") ||
+        t.includes("exatamente") ||
+        t.includes("claro") ||
+        t.includes("certeza")
+    ) {
+        fator = 2; // aproxima mais forte
+    }
+
+    // 🔍 busca conexão direta
     const { data } = await _supabase
-        .from("conceitos")
+        .from("teia")
         .select("*")
-        .eq("id", outroId)
-        .single();
+        .or(`and(conceito_a.eq.${idA},conceito_b.eq.${idB}),and(conceito_a.eq.${idB},conceito_b.eq.${idA})`)
+        .maybeSingle();
 
-    return data || null;
+    if (data) {
+
+        let novosVotos = data.votos + fator;
+
+        // ❌ evita negativo extremo
+        if (novosVotos < 0) novosVotos = 0;
+
+        await _supabase
+            .from("teia")
+            .update({ votos: novosVotos })
+            .eq("id", data.id);
+
+    } else {
+
+        // só cria se for positivo
+        if (fator > 0) {
+            await _supabase
+                .from("teia")
+                .insert({
+                    conceito_a: idA,
+                    conceito_b: idB,
+                    votos: fator
+                });
+        }
+    }
+
+    // 🔥 INFERÊNCIA (SILOGISMO SIMPLES)
+    // A → B e B → C => A → C (com força reduzida)
+
+    const { data: conexoesA } = await _supabase
+        .from("teia")
+        .select("*")
+        .or(`conceito_a.eq.${idA},conceito_b.eq.${idA}`);
+
+    if (!conexoesA) return;
+
+    for (let conexao of conexoesA) {
+
+        const idC =
+            conexao.conceito_a === idA
+                ? conexao.conceito_b
+                : conexao.conceito_a;
+
+        if (idC === idB) continue;
+
+        // 🔗 força indireta (decai)
+        const pesoIndireto = Math.floor(conexao.votos * 0.3);
+
+        if (pesoIndireto <= 0) continue;
+
+        // verifica se já existe A → C
+        const { data: existente } = await _supabase
+            .from("teia")
+            .select("*")
+            .or(`and(conceito_a.eq.${idB},conceito_b.eq.${idC}),and(conceito_a.eq.${idC},conceito_b.eq.${idB})`)
+            .maybeSingle();
+
+        if (existente) {
+
+            await _supabase
+                .from("teia")
+                .update({ votos: existente.votos + pesoIndireto })
+                .eq("id", existente.id);
+
+        } else {
+
+            await _supabase
+                .from("teia")
+                .insert({
+                    conceito_a: idB,
+                    conceito_b: idC,
+                    votos: pesoIndireto
+                });
+        }
+    }
 }
 
 // ❓ PERGUNTA OBRIGATÓRIA
@@ -610,7 +696,7 @@ await aprenderSequencia(textoOriginal);
     // 🔁 ATUALIZA TEIA
     
     if (conceitoAnteriorId) {
-        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id);
+        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginal);
     }
 
     conceitoAnteriorId = conceito.id;
