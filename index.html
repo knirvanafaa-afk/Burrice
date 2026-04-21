@@ -681,7 +681,9 @@ for (let parte of partes) {
     const texto = normalizarTexto(textoOriginalParte);
 
     // ✅ aprendizado sequencial por parte
+    if (ultimaRespostaOmega) {
     await aprenderSequencia(textoOriginalParte);
+}
 
     // 👉 daqui pra frente usa "texto" e "textoOriginalParte"
 
