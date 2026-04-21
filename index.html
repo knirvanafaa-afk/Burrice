@@ -618,6 +618,19 @@ async function escolherResposta(conceitoId, respostasComFreq) {
     // 🏆 resposta direta (base)
     const dominante = obterRespostaDominante(respostasComFreq);
 
+// 🔒 TRAVA DE SEGURANÇA
+
+const LIMIAR_DOMINANTE = 3;
+
+if (dominante && dominante.quantidade >= LIMIAR_DOMINANTE) {
+    return {
+        tipo: classificarFrequencia(1),
+        resposta: dominante.texto,
+        duvida: false,
+        origem: "direta_forte"
+    };
+}
+
     let melhorResposta = dominante;
     let melhorScore = dominante ? dominante.quantidade : 0;
 
@@ -642,7 +655,9 @@ if (!respostasRelacionadas.length) {
 
         for (let r of respostasRelacionadas) {
 
-            const score = (r.quantidade || 1) + (conexao.votos || 0);
+            const pesoTeia = (conexao.votos || 0) * 0.3; // reduz influência
+
+const score = (r.quantidade || 1) + pesoTeia;
 
             if (score > melhorScore) {
                 melhorScore = score;
@@ -742,9 +757,11 @@ for (let parte of partes) {
         await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginalParte);
 
 // 🔥 memória curta (complemento, não substituição)
+
 if (ultimoConceito && ultimoConceito !== conceito.id) {
-    await criarOuReforcarTeia(ultimoConceito, conceito.id, textoOriginalParte);
-}
+    await criarOuReforcarTeia(ultimoConceito, conceito.id, textoOriginalParte.slice(0, 20));
+    }
+
 
 ultimoConceito = conceito.id;
 
