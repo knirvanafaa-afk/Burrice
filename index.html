@@ -327,16 +327,17 @@ async function enviar() {
     // =========================
     if (modoAprender && termoPendente) {
 
-        await salvarResposta(termoPendente.id, texto);
+    await salvarResposta(termoPendente.id, texto);
 
-        // resposta aprendida
-        addMsg(sortear(VOCABULARIO.aprendeu), "ba");
+    addMsg(sortear(VOCABULARIO.aprendeu), "ba");
 
-        modoAprender = false;
-        termoPendente = null;
+    // 🔴 RESET COMPLETO DO CICLO
+    modoAprender = false;
+    termoPendente = null;
+    ultimoConceito = null;
 
-        return;
-    }
+    return;
+}
 
     // =========================
     // 🔍 BUSCA CONCEITO
@@ -367,11 +368,6 @@ async function enviar() {
     // 🔄 OPÇÃO B — ATUALIZA TEXTO MAIS FREQUENTE
     // =========================
     await atualizarTextoMaisFrequente(respostaEscolhida);
-
-    // =========================
-    // 💾 APRENDIZADO PASSIVO (SOMA RESPOSTA DO USUÁRIO)
-    // =========================
-    await salvarResposta(conceito.id, texto);
 
     // =========================
     // 📤 RESPONDE
