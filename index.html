@@ -214,7 +214,7 @@ async function processarEntrada(inputUsuario) {
         .from('conceitos')
         .select('*')
         .eq('termo_normalizado', termoNorm)
-        .single();
+        .maybeSingle();
 
     if (!conceito) {
         // REGRA: SE NÃO EXISTE CONCEITO -> APRENDER
@@ -320,7 +320,7 @@ const termoTexto = typeof termo === "string"
 const respNorm = normalizar(textoResposta);
 
     // Garante que o conceito existe ou recupera o ID
-    let { data: conceito } = await _supabase.from('conceitos').select('*').eq('termo_normalizado', termoNorm).single();
+    let { data: conceito } = await _supabase.from('conceitos').select('*').eq('termo_normalizado', termoNorm).maybeSingle();
     
     if (!conceito) {
         const { data: novoC } = await _supabase.from('conceitos')
@@ -337,7 +337,7 @@ const respNorm = normalizar(textoResposta);
         .select('*')
         .eq('conceito_id', conceito.id)
         .eq('texto_normalizado', respNorm)
-        .single();
+        .maybeSingle();
 
     if (existente) {
         await _supabase.from('respostas').update({ quantidade: existente.quantidade + 1 }).eq('id', existente.id);
