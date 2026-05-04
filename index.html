@@ -386,37 +386,41 @@ function responder(texto) {
 }
 
 // =========================================================
-// ⌨️ CONTROLE DE INTERFACE (EVENTOS)
+// ⌨️ CONTROLE DE ENVIO (CONECTANDO O BOTÃO)
 // =========================================================
 
-// Função para capturar o envio
 async function enviar() {
     const input = document.getElementById("input");
     const texto = input.value.trim();
 
     if (texto !== "") {
-        addMsg(texto, "user"); // Exibe a fala do usuário
-        input.value = "";      // Limpa o campo
-        await processarEntrada(texto); // Chama a inteligência do Ômega 7
+        // 1. Exibe a mensagem do usuário no chat
+        addMsg(texto, "user"); 
+        
+        // 2. Limpa o input
+        input.value = ""; 
+        
+        // 3. Processa a lógica (conforme a engine que você configurou)
+        await processarEntrada(texto); 
     }
 }
 
 // Escuta o clique no botão
 document.getElementById("btn-enviar").addEventListener("click", enviar);
 
-// Escuta a tecla Enter
+// Escuta a tecla Enter para facilitar o uso
 document.getElementById("input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") enviar();
 });
 
-// Garante que o addMsg funcione com a estrutura do seu HTML
+// Função para garantir que as mensagens apareçam no chat
 function addMsg(texto, tipo) {
     const chat = document.getElementById("chat");
     const div = document.createElement("div");
     div.className = `msg ${tipo}`;
     div.innerText = texto;
     chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight; // Rola o chat para baixo
+    chat.scrollTop = chat.scrollHeight; // Rola automaticamente para o fim
 }
 
 </script>
