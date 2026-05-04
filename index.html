@@ -390,7 +390,8 @@ function responder(texto) {
 // =========================================================
 
 async function enviar() {
-    const input = document.getElementById("input");
+    const input = document.getElementById("userInput");
+
     const texto = input.value.trim();
 
     if (texto !== "") {
@@ -406,10 +407,10 @@ async function enviar() {
 }
 
 // Escuta o clique no botão
-document.getElementById("btn-enviar").addEventListener("click", enviar);
+document.getElementById("btnEnviar").addEventListener("click", enviar);
 
 // Escuta a tecla Enter para facilitar o uso
-document.getElementById("input").addEventListener("keydown", (e) => {
+document.getElementById("userInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") enviar();
 });
 
