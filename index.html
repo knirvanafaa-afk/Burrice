@@ -315,7 +315,7 @@ input.addEventListener("keypress", e => {
 });
 
 // =============================
-// 🧠 PROCESSAMENTO PRINCIPAL CORRIGIDO
+// 🧠 PROCESSAMENTO PRINCIPAL AJUSTADO
 // =============================
 async function enviar() {
     const texto = input.value.trim();
@@ -324,66 +324,41 @@ async function enviar() {
     addMsg(texto, "user");
     input.value = "";
 
-    // 1. MODO APRENDER: O usuário está dando a definição para um termo que o Ômega7 não conhecia
+    // 1. MODO APRENDER
     if (modoAprender && termoPendente) {
-        // Grava a resposta para o conceito que estava pendente
         await salvarResposta(termoPendente.id, texto);
-        
         addMsg(sortear(VOCABULARIO.aprendeu), "ba");
-
-        // Regra de Ouro: Após aprender, chance de gerar pergunta (Ex: 15% confirmação, 15% curiosidade...)
         gerarPerguntaPosResposta(termoPendente, texto);
-
-        // RESET para novo ciclo
         modoAprender = false;
         termoPendente = null;
         return;
     }
 
-    // 2. BUSCA CONCEITO: Normaliza e verifica se já existe no banco
-    const termo_normalizado = normalizarTexto(texto);
-    let { data: conceito } = await _supabase
-        .from("conceitos")
-        .select("*")
-        .eq("termo_normalizado", termo_normalizado)
-        .maybeSingle();
+    // 2. BUSCA CONCEITO
+    let conceito = await buscarOuCriarConceito(texto);
 
-    // Se não existe o conceito, cria ele agora
-    if (!conceito) {
-        const { data: novoConceito } = await _supabase
-            .from("conceitos")
-            .insert({ termo: texto, termo_normalizado: termo_normalizado })
-            .select()
-            .single();
-        conceito = novoConceito;
-    }
-
-    // 3. BUSCA RESPOSTAS para esse conceito
-    const { data: respostas } = await _supabase
-        .from("respostas")
-        .select("*")
-        .eq("conceito_id", conceito.id);
+    // 3. BUSCA RESPOSTAS
+    const respostas = await buscarRespostas(conceito.id);
 
     // 4. DECISÃO DE FLUXO
     if (!respostas || respostas.length === 0) {
-        // NÃO EXISTE RESPOSTA: Entra em modo aprender
         modoAprender = true;
         termoPendente = conceito;
         addMsg(sortear(VOCABULARIO.naoSabe), "ba");
     } else {
-        // EXISTE RESPOSTA: Responde conforme o Tipo de Pensamento
+        // --- CÁLCULO DA FREQUÊNCIA EM MEMÓRIA (Essencial agora!) ---
+        const totalQtd = respostas.reduce((sum, r) => sum + r.quantidade, 0);
+        respostas.forEach(r => r.frequencia = r.quantidade / totalQtd);
+        
         let respostaEscolhida = escolherRespostaDominante(respostas);
         
-        // Aplica lógica de pensamento (Matemático, Humano, Filosófico)
+        // Aplica lógica de pensamento
         let textoFinal = aplicarTipoPensamento(respostaEscolhida);
-        
         addMsg(textoFinal, "ba");
 
-        // Soma +1 na quantidade desta resposta (Regra: soma aritmeticamente)
+        // Soma +1 no banco
         await somarQuantidadeResposta(respostaEscolhida);
-
-        // 10% de chance de Dúvida Humana ou Gancho (Regra 6 e 7)
-        // Se não disparar, encerra ou gera pergunta pós-ciclo (Regra 8)
+        
         if (!checarDuvidaOuGancho(texto, respostaEscolhida)) {
             gerarPerguntaPosResposta(conceito, respostaEscolhida.texto);
         }
