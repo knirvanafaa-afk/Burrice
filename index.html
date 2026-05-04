@@ -219,7 +219,11 @@ async function processarEntrada(inputUsuario) {
     if (!conceito) {
         // REGRA: SE NÃO EXISTE CONCEITO -> APRENDER
         modoAprender = true;
-        termoPendente = inputUsuario; 
+   
+   termoPendente = {
+    termo: inputUsuario,
+    termo_normalizado: termoNorm
+};
         responder(sortear(VOCABULARIO.naoSabe));
         return;
     }
@@ -304,14 +308,26 @@ function gerarPerguntaPosCiclo(conceito, respostaObj) {
 
 // 6. GRAVAÇÃO E APRENDIZADO
 async function gravarNovaResposta(termo, textoResposta) {
-    const termoNorm = normalizar(termo);
-    const respNorm = normalizar(textoResposta);
+   
+ const termoNorm = typeof termo === "string"
+    ? normalizar(termo)
+    : termo.termo_normalizado;
+
+const termoTexto = typeof termo === "string"
+    ? termo
+    : termo.termo;
+
+const respNorm = normalizar(textoResposta);
 
     // Garante que o conceito existe ou recupera o ID
     let { data: conceito } = await _supabase.from('conceitos').select('*').eq('termo_normalizado', termoNorm).single();
     
     if (!conceito) {
-        const { data: novoC } = await _supabase.from('conceitos').insert([{ termo: termo, termo_normalizado: termoNorm }]).select().single();
+        const { data: novoC } = await _supabase.from('conceitos')
+
+.insert([{ termo: termoTexto, termo_normalizado: termoNorm }])
+
+.select().single();
         conceito = novoC;
     }
 
