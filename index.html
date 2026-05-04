@@ -90,20 +90,23 @@
 
 // 🧠 ESTADOS DO SISTEMA
 
-// Quando TRUE → sistema está aprendendo um conceito novo
+// ativa quando conceito não tem resposta 
 let modoAprender = false;
 
-// Guarda o conceito que ainda não tem resposta
+// termoPendente → guarda o conceito aguardando definição
 let termoPendente = null;
 
-// Último conceito usado (para teia e contexto)
+// conceitoAnteriorId → usado EXCLUSIVAMENTE para teia
 let conceitoAnteriorId = null;
 
-// evita amnésia 
+// ultimoConceito → contexto semântico (apoio futuro / estabilidade)
 let ultimoConceito = null;
 
-// aprendizado sequencial 
-let ultimaRespostaOmega = null;
+// jaPerguntou → garante: nunca 2 perguntas seguidas 
+
+//pergunta sempre depois da resposta
+let jaPerguntou = false;
+
 
 // --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) ---
     const VOCABULARIO = {
@@ -128,6 +131,7 @@ let ultimaRespostaOmega = null;
         duvidaHumana: [
             "Eu conheço isso, mas você tem algo novo a dizer?", "Eu costumo falar uma coisa, mas queria ouvir sua versão.", "Já ouvi falar, mas me conta do seu jeito?",
             "Tenho uma ideia sobre isso, mas aceito sugestões!", "Dessa eu sei um pouco, mas queria saber mais.", "O que mais você pode me contar sobre esse assunto?",
+              "Me diz você, o que você acha disso?",
             "Será que tem outra forma de explicar isso?", "Estou querendo aprofundar esse tema. O que acha?", "Minha resposta padrão é uma, mas você tem outra melhor?",
             "Bora trocar uma ideia sobre isso? Conhece outro lado?", "Eu respondo de um jeito, mas quero variar. Dicas?", "Sempre bom ouvir uma segunda opinião. Qual a sua?",
             "Isso eu já vi, mas sinto que falta algo. Me ajuda?", "Vamos enriquecer esse assunto? O que mais você sabe?", "Eu lembro disso, mas queria uma visão diferente hoje.",
@@ -150,11 +154,22 @@ let ultimaRespostaOmega = null;
             "Aham, compreendido.", "Bateu aqui, entendi.", "Certo, prossiga!"
         ],
 curiosidade: [
+    "O que é",
     "O que você acha de",
     "Você conhece",
     "Já ouviu falar de",
     "Me explica uma coisa sobre",
     "Qual sua opinião sobre"
+],
+filosofica: [
+     "O que você acha que significa?",
+     "Faz sentido pra você?",
+     "Você acha isso correto?",
+     "Mas não acredito nisso",
+     "Porém eu duvido muito",
+     "Contudo não levo fé nisso",
+     "Acredito que tentaram me enganar",
+     "Fui ludibriado quando disseram isso",
 ]
     };
 
@@ -164,836 +179,236 @@ function sortear(lista) {
     return lista[Math.floor(Math.random() * lista.length)];
 }
 
-// 🔤 NORMALIZAÇÃO DE TEXTO
 
+// =============================
+// 🔤 NORMALIZAÇÃO FORTE
+// =============================
 function normalizarTexto(texto) {
-    if (!texto) return "";
-
     return texto
-        .toString()
-        .normalize("NFD") // remove acentos
-        .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
-        .trim()
+        .normalize("NFD") // remove acento
+        .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^\w\s]/g, "") // remove pontuação
-        .replace(/\s+/g, " "); // remove espaços duplicados
+        .replace(/\s+/g, "") // REMOVE TODOS ESPAÇOS
+        .trim();
 }
 
-// 🔎 COMPARAÇÃO SEGURA
+// =============================
+// 🔍 BUSCAR OU CRIAR CONCEITO
+// =============================
+async function buscarOuCriarConceito(textoOriginal) {
 
-function textosIguais(a, b) {
-    return normalizarTexto(a) === normalizarTexto(b);
-}
+    const termo_normalizado = normalizarTexto(textoOriginal);
 
-// 📊 CALCULAR FREQUÊNCIAS
-
-function calcularFrequencias(respostas) {
-    const total = respostas.reduce((soma, r) => soma + r.quantidade, 0);
-
-    return respostas.map(r => {
-        const freq = total > 0 ? r.quantidade / total : 0;
-
-        return {
-            ...r,
-            frequencia: freq,
-            tipo: classificarFrequencia(freq)
-        };
-    });
-}
-
-// 🧠 CLASSIFICAÇÃO DA FREQUÊNCIA
-
-function classificarFrequencia(freq) {
-    if (freq >= 0.8) return "matematico";
-    if (freq >= 0.4) return "humano";
-    return "filosofico";
-}
-
-// 🏆 OBTER RESPOSTA DOMINANTE
-
-function obterRespostaDominante(respostas) {
-    if (!respostas || respostas.length === 0) return null;
-
-    return respostas.reduce((maior, atual) => {
-        return atual.quantidade > maior.quantidade ? atual : maior;
-    });
-}
-
-// 📊 CLASSIFICAÇÃO DO CONCEITO
-
-function classificarConceito(respostasComFreq) {
-    if (!respostasComFreq.length) return "desconhecido";
-
-    const dominante = obterRespostaDominante(respostasComFreq);
-
-    if (!dominante) return "desconhecido";
-
-    return classificarFrequencia(dominante.frequencia);
-}
-
-// ➕ REFORÇAR RESPOSTA (Usa QUANTIDADE)
-
-async function reforcarResposta(respostaId, quantidadeAtual) {
-    const novaQuantidade = parseFloat(quantidadeAtual) + 1;
-    await _supabase
-        .from("respostas")
-        .update({ quantidade: novaQuantidade })
-        .eq("id", respostaId);
-}
-
-// ➕ GRAVAR RESPOSTA (Usa QUANTIDADE para o cálculo de confiança)
-async function inserirNovaResposta(conceitoId, texto) {
-    const { error } = await _supabase
-        .from("respostas")
-        .insert({
-            conceito_id: conceitoId,
-            texto: texto,
-            quantidade: 1 
-        });
-    if (error) console.error("Erro fatal ao gravar resposta:", error);
-}
-
-// 🔍 BUSCAR RESPOSTA EXISTENTE
-
-function encontrarRespostaExistente(respostas, texto) {
-    return respostas.find(r =>
-        textosIguais(r.texto, texto)
-    );
-}
-
-// 🧠 APRENDIZADO ATIVO
-
-async function aprendizadoAtivo(conceitoId, respostas, textoUsuario) {
-    const existente = encontrarRespostaExistente(respostas, textoUsuario);
-
-    if (existente) {
-        await reforcarResposta(existente.id, existente.quantidade);
-    } else {
-        await inserirNovaResposta(conceitoId, textoUsuario);
-    }
-}
-
-// 🤝 CONFIRMAÇÃO (20%)
-
-async function confirmacao(conceitoId, respostas, textoUsuario) {
-    const existente = encontrarRespostaExistente(respostas, textoUsuario);
-
-    if (existente) {
-
-    let incremento = 1;
-
-    // se veio fraco (sequencial), promove parcialmente
-    if (existente.quantidade < 1) {
-        incremento = 0.3; // 👈 use 0.3 para teste mais conservador
-    }
-
-    await atualizarQuantidade(
-        existente.id,
-        existente.quantidade + incremento
-    );
-}
-
-}
-
-// 🌱 APRENDIZADO PASSIVO (5%)
-
-async function aprendizagemPassiva(conceitoId, respostas, textoUsuario) {
-    const existente = encontrarRespostaExistente(respostas, textoUsuario);
-
-    if (existente) {
-        // +1 na correta
-        await reforcarResposta(existente.id, existente.quantidade);
-
-        // -0.2 nas outras
-        for (let r of respostas) {
-            if (r.id !== existente.id) {
-                const novaQuantidade = r.quantidade - 0.2;
-
-                if (novaQuantidade <= 0) {
-                    await removerResposta(r.id);
-                } else {
-                    await atualizarQuantidade(r.id, novaQuantidade);
-                }
-            }
-        }
-    } else {
-        // nova resposta
-        await inserirNovaResposta(conceitoId, textoUsuario);
-    }
-}
-
-// ✏️ ATUALIZAR QUANTIDADE
-
-
-async function atualizarQuantidade(respostaId, quantidade) {
-    await _supabase
-        .from("respostas")
-        .update({ quantidade })
-        .eq("id", respostaId);
-}
-
-// ❌ REMOVER RESPOSTA
-
-async function removerResposta(respostaId) {
-    await _supabase
-        .from("respostas")
-        .delete()
-        .eq("id", respostaId);
-}
-
-// 🧹 LIMPAR CONCEITO VAZIO
-
-async function limparConceitoSeVazio(conceitoId) {
-    const { data } = await _supabase
-        .from("respostas")
-        .select("id")
-        .eq("conceito_id", conceitoId);
-
-    if (!data || data.length === 0) {
-        await _supabase
-            .from("conceitos")
-            .delete()
-            .eq("id", conceitoId);
-    }
-}
-
-// 🔍 BUSCAR CONCEITO (Corrigido de 'termo_limpo' para 'termo')
-async function buscarConceito(termo) {
-    const termoNormalizado = normalizarTexto(termo);
-    const { data, error } = await _supabase
+    // tenta buscar
+    let { data: existente } = await _supabase
         .from("conceitos")
         .select("*")
-        .eq("termo", termoNormalizado)
+        .eq("termo_normalizado", termo_normalizado)
         .maybeSingle();
-    return data;
-}
 
-// ➕ CRIAR CONCEITO (Corrigido para 'termo')
-async function criarConceito(termo) {
-    const termoNormalizado = normalizarTexto(termo);
+    if (existente) {
+        return existente;
+    }
+
+    // se não existe → cria (UPSERT manual seguro)
     const { data, error } = await _supabase
         .from("conceitos")
-        .insert({ termo: termoNormalizado })
+        .insert({
+            termo: textoOriginal,
+            termo_normalizado
+        })
         .select()
         .single();
+
+    if (error) {
+        // possível corrida → tenta buscar novamente
+        const { data: retry } = await _supabase
+            .from("conceitos")
+            .select("*")
+            .eq("termo_normalizado", termo_normalizado)
+            .single();
+
+        return retry;
+    }
+
     return data;
 }
 
-// 🔁 BUSCAR OU CRIAR CONCEITO
-
-async function buscarOuCriarConceito(termo) {
-    let conceito = await buscarConceito(termo);
-
-    if (!conceito) {
-        conceito = await criarConceito(termo);
-    }
-
-    return conceito;
-}
-
+// =============================
 // 📥 BUSCAR RESPOSTAS DO CONCEITO
+// =============================
+async function buscarRespostas(conceito_id) {
 
-async function buscarRespostas(conceitoId) {
     const { data, error } = await _supabase
         .from("respostas")
         .select("*")
-        .eq("conceito_id", conceitoId);
+        .eq("conceito_id", conceito_id);
 
     if (error) {
         console.error("Erro ao buscar respostas:", error);
         return [];
     }
 
-    return data || [];
-}
-
-// 🔍 BUSCAR RESPOSTA ESPECÍFICA
-
-async function buscarRespostaPorTexto(conceitoId, texto) {
-    const respostas = await buscarRespostas(conceitoId);
-
-    return respostas.find(r =>
-        textosIguais(r.texto, texto)
-    );
-}
-
-// 🔗 CRIAR OU REFORÇAR CONEXÃO
-
-// 🔗 GRAVAR NA TEIA (Usa VOTOS para Silogismos)
-
-async function criarOuReforcarTeia(idA, idB) {
-    if (!idA || !idB || idA === idB) return;
-    const { data } = await _supabase
-        .from("teia")
-        .select("*")
-        .or(`and(conceito_a.eq.${idA},conceito_b.eq.${idB}),and(conceito_a.eq.${idB},conceito_b.eq.${idA})`)
-        .maybeSingle();
-
-    if (data) {
-        await _supabase.from("teia")
-            .update({ votos: data.votos + 1 })
-            .eq("id", data.id);
-    } else {
-        await _supabase.from("teia")
-            .insert({ conceito_a: idA, conceito_b: idB, votos: 1 });
-    }
-}
-
-// 🔍 BUSCAR CONEXÕES FORTES
-
-async function buscarConexoes(conceitoId) {
-    const { data } = await _supabase
-        .from("teia")
-        .select("*")
-        .or(`conceito_a.eq.${conceitoId},conceito_b.eq.${conceitoId}`);
-
-    return data || [];
-}
-
-// 🧠 OBTER CONCEITO RELACIONADO
-
-
-async function criarOuReforcarTeia(idA, idB, texto = "") {
-
-    if (!idA || !idB || idA === idB) return;
-
-    // 🔤 normaliza texto
-    const t = normalizarTexto(texto);
-
-    // 📉 fator de força (base)
-    let fator = 1;
-
-    // 🔻 redução de força por negação implícita (sem classificar fixo)
-    if (t.includes("nao") || t.includes("nunca") || t.includes("jamais")) {
-        fator = -1; // afasta
-    }
-
-    // 🔺 leve reforço por afirmação natural
-    if (
-        t.includes("sim") ||
-        t.includes("exatamente") ||
-        t.includes("claro") ||
-        t.includes("certeza")
-    ) {
-        fator = 2; // aproxima mais forte
-    }
-
-    // 🔍 busca conexão direta
-    const { data } = await _supabase
-        .from("teia")
-        .select("*")
-        .or(`and(conceito_a.eq.${idA},conceito_b.eq.${idB}),and(conceito_a.eq.${idB},conceito_b.eq.${idA})`)
-        .maybeSingle();
-
-    if (data) {
-
-        let novosVotos = data.votos + fator;
-
-        // ❌ evita negativo extremo
-        if (novosVotos < 0) novosVotos = 0;
-
-        await _supabase
-            .from("teia")
-            .update({ votos: novosVotos })
-            .eq("id", data.id);
-
-    } else {
-
-        // só cria se for positivo
-        if (fator > 0) {
-            await _supabase
-                .from("teia")
-                .insert({
-                    conceito_a: idA,
-                    conceito_b: idB,
-                    votos: fator
-                });
-        }
-    }
-
-    // 🔥 INFERÊNCIA (SILOGISMO SIMPLES)
-    // A → B e B → C => A → C (com força reduzida)
-
-    const { data: conexoesA } = await _supabase
-        .from("teia")
-        .select("*")
-        .or(`conceito_a.eq.${idA},conceito_b.eq.${idA}`);
-
-    if (!conexoesA) return;
-
-    for (let conexao of conexoesA) {
-
-        const idC =
-            conexao.conceito_a === idA
-                ? conexao.conceito_b
-                : conexao.conceito_a;
-
-        if (idC === idB) continue;
-
-        // 🔗 força indireta (decai)
-        const pesoIndireto = Math.floor(conexao.votos * 0.3);
-
-        if (pesoIndireto <= 0) continue;
-
-        // verifica se já existe A → C
-        const { data: existente } = await _supabase
-            .from("teia")
-            .select("*")
-            .or(`and(conceito_a.eq.${idB},conceito_b.eq.${idC}),and(conceito_a.eq.${idC},conceito_b.eq.${idB})`)
-            .maybeSingle();
-
-        if (existente) {
-
-            await _supabase
-                .from("teia")
-                .update({ votos: existente.votos + pesoIndireto })
-                .eq("id", existente.id);
-
-        } else {
-
-            await _supabase
-                .from("teia")
-                .insert({
-                    conceito_a: idB,
-                    conceito_b: idC,
-                    votos: pesoIndireto
-                });
-        }
-    }
-}
-
-// ❓ PERGUNTA OBRIGATÓRIA
-
-function perguntaObrigatoria() {
-    modoAprender = true;
-    return sortear(VOCABULARIO.naoSabe);
-}
-
-// 🤝 DECIDIR CONFIRMAÇÃO (20%)
-
-function deveConfirmar() {
-    return Math.random() < 0.2;
-}
-
-//DECIDIR APRENDIZAGEM PASSIVA (5%)
-
-function deveAprenderPassivo() {
-    return Math.random() < 0.05;
-}
-
-// 🧠 DECIDIR CURIOSIDADE (20%)
-
-function devePerguntarCuriosidade() {
-    return Math.random() < 0.2;
-}
-
-// FUNCAO CONCEITO RELACIONADO
-
-async function obterConceitoRelacionado(conceitoId) {
-    const conexoes = await buscarConexoes(conceitoId);
-
-    if (!conexoes.length) return null;
-
-    const aleatoria = conexoes[Math.floor(Math.random() * conexoes.length)];
-
-    const outroId =
-        aleatoria.conceito_a === conceitoId
-            ? aleatoria.conceito_b
-            : aleatoria.conceito_a;
-
-    const { data } = await _supabase
-        .from("conceitos")
-        .select("*")
-        .eq("id", outroId)
-        .single();
-
     return data;
 }
 
-// GERAR PERGUNTA DE CURIOSIDADE
-
-async function gerarPerguntaCuriosidade(conceitoId) {
-    const relacionado = await obterConceitoRelacionado(conceitoId);
-
-    if (!relacionado) return null;
-
-    return `${sortear(VOCABULARIO.curiosidade)} ${relacionado.termo}`;
-}
-
-// 🧠 DECIDIR RESPOSTA PRINCIPAL
-
-
-async function escolherResposta(conceitoId, respostasComFreq) {
-
-    if (!respostasComFreq.length) return null;
-
-    // 🏆 resposta direta (base)
-    const dominante = obterRespostaDominante(respostasComFreq);
-
-// 🔒 TRAVA DE SEGURANÇA
-
-const LIMIAR_DOMINANTE = 3;
-
-if (dominante && dominante.quantidade >= LIMIAR_DOMINANTE) {
-    return {
-        tipo: classificarFrequencia(1),
-        resposta: dominante.texto,
-        duvida: false,
-        origem: "direta_forte"
-    };
-}
-
-    let melhorResposta = dominante;
-    let melhorScore = dominante ? dominante.quantidade : 0;
-
-    // 🔗 buscar conexões da teia
-    const conexoes = await buscarConexoes(conceitoId) || [];
-
-    for (let conexao of conexoes) {
-
-        const outroId =
-            conexao.conceito_a === conceitoId
-                ? conexao.conceito_b
-                : conexao.conceito_a;
-
-       let respostasRelacionadas = await buscarRespostas(outroId) || [];
-
-if (!respostasRelacionadas.length) {
-    respostasRelacionadas = [{
-        texto: "relacionado",
-        quantidade: conexao.votos || 1
-    }];
-}
-
-        for (let r of respostasRelacionadas) {
-
-            const pesoTeia = (conexao.votos || 0) * 0.3; // reduz influência
-
-const score = (r.quantidade || 1) + pesoTeia;
-
-            if (score > melhorScore) {
-                melhorScore = score;
-                melhorResposta = r;
-            }
-        }
-    }
-
-    if (!melhorResposta) return null;
-
-    const freqBase = melhorResposta.quantidade || 1;
-    const freqFake = freqBase / (freqBase + 1);
-
-    const tipo = classificarFrequencia(freqFake);
-
-    return {
-        tipo,
-        resposta: melhorResposta.texto,
-        duvida: tipo === "filosofico",
-        origem: melhorResposta === dominante ? "direta" : "teia"
-    };
-}
-
-// 🗣️ FORMATAR RESPOSTA FINAL
-
-
-function montarRespostaFinal(decisao) {
-
-    if (!decisao) return "Não sei.";
-
-    if (decisao.tipo === "filosofico") {
-        return `${decisao.resposta}, mas não tenho certeza. O que você acha?`;
-    }
-
-    return decisao.resposta;
-}
-
-//QUEBRAR FRASES TEIA
-
-function quebrarFrases(texto) {
-    return texto
-        .split(/[.!?]+/)
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-}
-
-// 🚀 FUNÇÃO PRINCIPAL
-
-
-async function enviar() {
-    const input = document.getElementById("userInput");
-    
-const textoOriginal = input.value;
-
-if (!textoOriginal.trim()) return;
-
-adicionarMensagem(textoOriginal, "user");
-
-input.value = "";
-
-// 🔥 quebra em partes
-const partes = quebrarFrases(textoOriginal);
-
-// 🔁 processa cada parte corretamente
-for (let parte of partes) {
-
-    const textoOriginalParte = parte;
-const texto = normalizarTexto(textoOriginalParte);
-
-// 🔁 aprendizado sequencial usa NORMALIZADO
-if (ultimaRespostaOmega) {
-await aprenderSequencia(textoOriginalParte);
-}
-
-    // 👉 daqui pra frente usa "texto" e "textoOriginalParte"
-
-
-    // 🌳 COMANDO ESPECIAL (PODA)
-
-    if (texto === "executar_poda_anual") {
-        await realizarPodaNeuralAnual();
-        adicionarMensagem("Poda realizada.", "ba");
-        continue;
-    }
-
-
-    // 📚 MODO APRENDER
-
-    if (modoAprender && termoPendente) {
-    const conceito = await buscarOuCriarConceito(termoPendente);
-    const respostas = await buscarRespostas(conceito.id);
-
-    await aprendizadoAtivo(conceito.id, respostas, textoOriginalParte);
-
-    // 🔗 ATIVA TEIA DURANTE APRENDIZADO
-    if (conceitoAnteriorId) {
-        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginalParte);
-
-// 🔥 memória curta (complemento, não substituição)
-
-if (ultimoConceito && ultimoConceito !== conceito.id) {
-    await criarOuReforcarTeia(ultimoConceito, conceito.id, textoOriginalParte.slice(0, 20));
-    }
-
-
-ultimoConceito = conceito.id;
-
-    }
-
-    conceitoAnteriorId = conceito.id;
-
-    modoAprender = false;
-    termoPendente = null;
-
-    adicionarMensagem(sortear(VOCABULARIO.aprendeu), "ba");
-    continue;
-}
-
-    // 🔍 BUSCAR CONCEITO
-
-    let conceito = await buscarConceito(texto);
-
-    // ❓ NÃO EXISTE → PERGUNTA
-
-    if (!conceito) {
-        modoAprender = true;
-        termoPendente = textoOriginalParte;
-
-        adicionarMensagem(perguntaObrigatoria(), "ba");
-        continue;
-    }
-
-    // 📥 BUSCAR RESPOSTAS
-
-    let respostas = await buscarRespostas(conceito.id);
-
-    if (!respostas.length) {
-        modoAprender = true;
-        termoPendente = textoOriginalParte;
-
-        adicionarMensagem(perguntaObrigatoria(), "ba");
-        continue;
-    }
- 
-  // 📊 FREQUÊNCIA E CLASSIFICAÇÃO
-   
-    const respostasComFreq = calcularFrequencias(respostas);
-
-    const decisao = await escolherResposta(conceito.id, respostasComFreq);
-
-    const respostaFinal = montarRespostaFinal(decisao);
-
-    adicionarMensagem(respostaFinal, "ba");
-
-    // 🔁 ATUALIZA TEIA
-    
-    if (conceitoAnteriorId) {
-        await criarOuReforcarTeia(conceitoAnteriorId, conceito.id, textoOriginal);
-    }
-
-    conceitoAnteriorId = conceito.id;
-
-    // ❓ CONFIRMAÇÃO (20%)
-  
-    if (deveConfirmar()) {
-        adicionarMensagem("Isso está correto?", "ba");
-        modoAprender = true;
-        termoPendente = textoOriginalParte;
-        continue;
-    }
-
-    // 🌱 APRENDIZAGEM PASSIVA (5%)
-   
-    if (deveAprenderPassivo()) {
-        adicionarMensagem("Pode confirmar isso?", "ba");
-        modoAprender = true;
-        termoPendente = textoOriginalParte;
-        continue;
-    }
-
-    // 🧠 CURIOSIDADE (20%)
-   
-    if (devePerguntarCuriosidade()) {
-        const pergunta = await gerarPerguntaCuriosidade(conceito.id);
-
-        if (pergunta) {
-            adicionarMensagem(pergunta, "ba");
-           }
-       }
-   }
-}
-
-// 🌳 PODA NEURAL ANUAL
-
-async function realizarPodaNeuralAnual() {
-
-    // 📉 PODA RESPOSTAS
-   
-    const { data: respostas } = await _supabase
+// =============================
+// 💾 SALVAR RESPOSTA (SEM DUPLICAR)
+// =============================
+async function salvarResposta(conceito_id, textoOriginal) {
+
+    const texto_normalizado = normalizarTexto(textoOriginal);
+
+    // verifica se já existe
+    const { data: existente } = await _supabase
         .from("respostas")
-        .select("*");
+        .select("*")
+        .eq("conceito_id", conceito_id)
+        .eq("texto_normalizado", texto_normalizado)
+        .maybeSingle();
 
-    for (let r of respostas) {
-        const novaQuantidade = r.quantidade - 1;
-
-        if (novaQuantidade <= 0) {
-            await removerResposta(r.id);
-        } else {
-            await atualizarQuantidade(r.id, novaQuantidade);
-        }
-    }
-
-    // 🔗 PODA TEIA
-   
-    // 🔗 PODA TEIA
-const { data: teias } = await _supabase
-    .from("teia")
-    .select("*");
-
-for (let t of teias) {
-
-    const novosVotos = t.votos - 1;
-
-    if (novosVotos <= 0) {
+    if (existente) {
+        // soma +1
+        const novaQuantidade = parseFloat(existente.quantidade) + 1;
 
         await _supabase
-            .from("teia")
-            .delete()
-            .eq("id", t.id);
-
-    } else {
-
-        await _supabase
-            .from("teia")
-            .update({ votos: novosVotos })
-            .eq("id", t.id);
-    }
-}
-
-    // 🧹 LIMPAR CONCEITOS VAZIOS
-   
-    const { data: conceitos } = await _supabase
-        .from("conceitos")
-        .select("*");
-
-    for (let c of conceitos) {
-        const { data: respostasDoConceito } = await _supabase
             .from("respostas")
-            .select("id")
-            .eq("conceito_id", c.id);
+            .update({ quantidade: novaQuantidade })
+            .eq("id", existente.id);
 
-        if (!respostasDoConceito || respostasDoConceito.length === 0) {
-            await _supabase
-                .from("conceitos")
-                .delete()
-                .eq("id", c.id);
-        }
+        return;
     }
+
+    // cria nova resposta
+    await _supabase
+        .from("respostas")
+        .insert({
+            conceito_id,
+            texto: textoOriginal,
+            texto_normalizado,
+            quantidade: 1
+        });
 }
 
-// 💬 ADICIONAR MENSAGEM NO CHAT
+// =============================
+// 🖥️ UI
+// =============================
+const chat = document.getElementById("chat");
+const input = document.getElementById("userInput");
+const btn = document.getElementById("btnEnviar");
 
-function adicionarMensagem(texto, tipo) {
-
-    const chat = document.getElementById("chat");
-
+function addMsg(texto, classe) {
     const div = document.createElement("div");
-
-    div.classList.add("msg", tipo);
-
+    div.className = "msg " + classe;
     div.textContent = texto;
-
     chat.appendChild(div);
-
     chat.scrollTop = chat.scrollHeight;
-
-    // ✅ CAPTURA RESPOSTA DO ÔMEGA (IMPORTANTE)
-    if (tipo === "ba") {
-        ultimaRespostaOmega = texto;
-    }
 }
 
-// ⌨️ EVENTO BOTÃO
-
-document.getElementById("btnEnviar").addEventListener("click", enviar);
-
-// ⌨️ EVENTO ENTER
-
-document.getElementById("userInput").addEventListener("keypress", function (e) {
-    if (e.key === "Enter") {
-        enviar();
-    }
+// =============================
+// 🧠 PROCESSAMENTO PRINCIPAL (SEM 80/10/10)
+// =============================
+btn.onclick = enviar;
+input.addEventListener("keypress", e => {
+    if (e.key === "Enter") enviar();
 });
 
-async function aprenderSequencia(textoUsuario) {
+async function enviar() {
 
-    try {
+    const texto = input.value.trim();
+    if (!texto) return;
 
-        if (!ultimaRespostaOmega) return;
+    addMsg(texto, "user");
+    input.value = "";
 
-        const conceito = await buscarOuCriarConceito(ultimaRespostaOmega);
+    // =========================
+    // 🔁 MODO APRENDER
+    // =========================
+    if (modoAprender && termoPendente) {
 
-        const respostas = await buscarRespostas(conceito.id);
+        await salvarResposta(termoPendente.id, texto);
 
-        const existente = encontrarRespostaExistente(respostas, textoUsuario);
+        // resposta aprendida
+        addMsg(sortear(VOCABULARIO.aprendeu), "ba");
 
-        if (existente) {
-            await reforcarResposta(existente.id, existente.quantidade);
-        } else {
+        modoAprender = false;
+        termoPendente = null;
 
-            await _supabase
-    .from("respostas")
-    .insert({
-        conceito_id: conceito.id,
-        texto: textoUsuario,
-        quantidade: 0.1
-    });
-
-        }
-
-    } catch (e) {
-        console.error("Erro aprendizado sequencial:", e);
+        return;
     }
+
+    // =========================
+    // 🔍 BUSCA CONCEITO
+    // =========================
+    const conceito = await buscarOuCriarConceito(texto);
+    const respostas = await buscarRespostas(conceito.id);
+
+    ultimoConceito = conceito;
+
+    // =========================
+    // ❓ NÃO TEM RESPOSTA
+    // =========================
+    if (respostas.length === 0) {
+
+        modoAprender = true;
+        termoPendente = conceito;
+
+        addMsg(sortear(VOCABULARIO.naoSabe), "ba");
+        return;
+    }
+
+    // =========================
+    // 📊 ESCOLHER RESPOSTA DOMINANTE
+    // =========================
+    let respostaEscolhida = escolherRespostaDominante(respostas);
+
+    // =========================
+    // 🔄 OPÇÃO B — ATUALIZA TEXTO MAIS FREQUENTE
+    // =========================
+    await atualizarTextoMaisFrequente(respostaEscolhida);
+
+    // =========================
+    // 💾 APRENDIZADO PASSIVO (SOMA RESPOSTA DO USUÁRIO)
+    // =========================
+    await salvarResposta(conceito.id, texto);
+
+    // =========================
+    // 📤 RESPONDE
+    // =========================
+    addMsg(respostaEscolhida.texto, "ba");
 }
+
+// =============================
+// 🧠 ESCOLHER RESPOSTA DOMINANTE
+// =============================
+function escolherRespostaDominante(respostas) {
+
+    // ordena por quantidade
+    respostas.sort((a, b) => b.quantidade - a.quantidade);
+
+    const maior = respostas[0].quantidade;
+
+    // pega todas empatadas
+    const empatadas = respostas.filter(r => r.quantidade === maior);
+
+    // desempate aleatório
+    return empatadas[Math.floor(Math.random() * empatadas.length)];
+}
+
+// =============================
+// 🔄 ATUALIZAR TEXTO MAIS FREQUENTE (OPÇÃO B)
+// =============================
+async function atualizarTextoMaisFrequente(resposta) {
+
+    // garante que o texto salvo representa a forma dominante
+    await _supabase
+        .from("respostas")
+        .update({ texto: resposta.texto })
+        .eq("id", resposta.id);
+}
+
+
 
 </script>
 
