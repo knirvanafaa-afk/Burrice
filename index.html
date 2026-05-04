@@ -385,6 +385,40 @@ function responder(texto) {
     }, 500);
 }
 
+// =========================================================
+// ⌨️ CONTROLE DE INTERFACE (EVENTOS)
+// =========================================================
+
+// Função para capturar o envio
+async function enviar() {
+    const input = document.getElementById("input");
+    const texto = input.value.trim();
+
+    if (texto !== "") {
+        addMsg(texto, "user"); // Exibe a fala do usuário
+        input.value = "";      // Limpa o campo
+        await processarEntrada(texto); // Chama a inteligência do Ômega 7
+    }
+}
+
+// Escuta o clique no botão
+document.getElementById("btn-enviar").addEventListener("click", enviar);
+
+// Escuta a tecla Enter
+document.getElementById("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") enviar();
+});
+
+// Garante que o addMsg funcione com a estrutura do seu HTML
+function addMsg(texto, tipo) {
+    const chat = document.getElementById("chat");
+    const div = document.createElement("div");
+    div.className = `msg ${tipo}`;
+    div.innerText = texto;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight; // Rola o chat para baixo
+}
+
 </script>
 
 </body>
