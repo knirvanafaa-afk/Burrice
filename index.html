@@ -314,97 +314,114 @@ input.addEventListener("keypress", e => {
     if (e.key === "Enter") enviar();
 });
 
+// =============================
+// 🧠 PROCESSAMENTO PRINCIPAL CORRIGIDO
+// =============================
 async function enviar() {
-
     const texto = input.value.trim();
     if (!texto) return;
 
     addMsg(texto, "user");
     input.value = "";
 
-    // =========================
-    // 🔁 MODO APRENDER
-    // =========================
+    // 1. MODO APRENDER: O usuário está dando a definição para um termo que o Ômega7 não conhecia
     if (modoAprender && termoPendente) {
+        // Grava a resposta para o conceito que estava pendente
+        await salvarResposta(termoPendente.id, texto);
+        
+        addMsg(sortear(VOCABULARIO.aprendeu), "ba");
 
-    await salvarResposta(termoPendente.id, texto);
+        // Regra de Ouro: Após aprender, chance de gerar pergunta (Ex: 15% confirmação, 15% curiosidade...)
+        gerarPerguntaPosResposta(termoPendente, texto);
 
-    addMsg(sortear(VOCABULARIO.aprendeu), "ba");
-
-    // 🔴 RESET COMPLETO DO CICLO
-    modoAprender = false;
-    termoPendente = null;
-    ultimoConceito = null;
-
-    return;
-}
-
-    // =========================
-    // 🔍 BUSCA CONCEITO
-    // =========================
-    const conceito = await buscarOuCriarConceito(texto);
-    const respostas = await buscarRespostas(conceito.id);
-
-    ultimoConceito = conceito;
-
-    // =========================
-    // ❓ NÃO TEM RESPOSTA
-    // =========================
-    if (respostas.length === 0) {
-
-        modoAprender = true;
-        termoPendente = conceito;
-
-        addMsg(sortear(VOCABULARIO.naoSabe), "ba");
+        // RESET para novo ciclo
+        modoAprender = false;
+        termoPendente = null;
         return;
     }
 
-    // =========================
-    // 📊 ESCOLHER RESPOSTA DOMINANTE
-    // =========================
-    let respostaEscolhida = escolherRespostaDominante(respostas);
+    // 2. BUSCA CONCEITO: Normaliza e verifica se já existe no banco
+    const termo_normalizado = normalizarTexto(texto);
+    let { data: conceito } = await _supabase
+        .from("conceitos")
+        .select("*")
+        .eq("termo_normalizado", termo_normalizado)
+        .maybeSingle();
 
-    // =========================
-    // 🔄 OPÇÃO B — ATUALIZA TEXTO MAIS FREQUENTE
-    // =========================
-    await atualizarTextoMaisFrequente(respostaEscolhida);
+    // Se não existe o conceito, cria ele agora
+    if (!conceito) {
+        const { data: novoConceito } = await _supabase
+            .from("conceitos")
+            .insert({ termo: texto, termo_normalizado: termo_normalizado })
+            .select()
+            .single();
+        conceito = novoConceito;
+    }
 
-    // =========================
-    // 📤 RESPONDE
-    // =========================
-    addMsg(respostaEscolhida.texto, "ba");
-}
-
-// =============================
-// 🧠 ESCOLHER RESPOSTA DOMINANTE
-// =============================
-function escolherRespostaDominante(respostas) {
-
-    // ordena por quantidade
-    respostas.sort((a, b) => b.quantidade - a.quantidade);
-
-    const maior = respostas[0].quantidade;
-
-    // pega todas empatadas
-    const empatadas = respostas.filter(r => r.quantidade === maior);
-
-    // desempate aleatório
-    return empatadas[Math.floor(Math.random() * empatadas.length)];
-}
-
-// =============================
-// 🔄 ATUALIZAR TEXTO MAIS FREQUENTE (OPÇÃO B)
-// =============================
-async function atualizarTextoMaisFrequente(resposta) {
-
-    // garante que o texto salvo representa a forma dominante
-    await _supabase
+    // 3. BUSCA RESPOSTAS para esse conceito
+    const { data: respostas } = await _supabase
         .from("respostas")
-        .update({ texto: resposta.texto })
-        .eq("id", resposta.id);
+        .select("*")
+        .eq("conceito_id", conceito.id);
+
+    // 4. DECISÃO DE FLUXO
+    if (!respostas || respostas.length === 0) {
+        // NÃO EXISTE RESPOSTA: Entra em modo aprender
+        modoAprender = true;
+        termoPendente = conceito;
+        addMsg(sortear(VOCABULARIO.naoSabe), "ba");
+    } else {
+        // EXISTE RESPOSTA: Responde conforme o Tipo de Pensamento
+        let respostaEscolhida = escolherRespostaDominante(respostas);
+        
+        // Aplica lógica de pensamento (Matemático, Humano, Filosófico)
+        let textoFinal = aplicarTipoPensamento(respostaEscolhida);
+        
+        addMsg(textoFinal, "ba");
+
+        // Soma +1 na quantidade desta resposta (Regra: soma aritmeticamente)
+        await somarQuantidadeResposta(respostaEscolhida);
+
+        // 10% de chance de Dúvida Humana ou Gancho (Regra 6 e 7)
+        // Se não disparar, encerra ou gera pergunta pós-ciclo (Regra 8)
+        if (!checarDuvidaOuGancho(texto, respostaEscolhida)) {
+            gerarPerguntaPosResposta(conceito, respostaEscolhida.texto);
+        }
+    }
 }
 
+// Funções Auxiliares para cumprir as Regras de Ouro:
 
+async function somarQuantidadeResposta(res) {
+    const novaQtd = parseFloat(res.quantidade) + 1;
+    await _supabase.from("respostas").update({ quantidade: novaQtd }).eq("id", res.id);
+}
+
+function aplicarTipoPensamento(res) {
+    // Regra: 0.8+ Matemático, 0.4-0.79 Humano, <0.4 Filosófico
+    const freq = res.frequencia || 0.5; 
+    if (freq >= 0.8) return res.texto; // Matemático: Resposta única
+    if (freq < 0.4) {
+        // Filosófico: Responde com dúvida (?) e 40% de chance de pergunta extra
+        let txt = res.texto + "?";
+        if (Math.random() < 0.4) txt += " " + sortear(VOCABULARIO.filosofica);
+        return txt;
+    }
+    return res.texto; // Humano
+}
+
+function gerarPerguntaPosResposta(conceito, respostaTexto) {
+    const r = Math.random();
+    // 55% Não gera nada (encerra)
+    if (r < 0.55) return;
+    
+    // Regras de Geração de Perguntas (15% Confirmação, 15% Curiosidade, etc)
+    if (r < 0.70) { 
+        addMsg(`${conceito.termo} ${respostaTexto}?`, "ba"); // Confirmação
+    } else if (r < 0.85) {
+        addMsg(`${sortear(VOCABULARIO.curiosidade)} ${conceito.termo}?`, "ba"); // Curiosidade
+    }
+}
 
 </script>
 
