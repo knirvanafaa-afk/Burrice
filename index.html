@@ -398,6 +398,37 @@ function gerarPerguntaPosResposta(conceito, respostaTexto) {
     }
 }
 
+// =============================
+// 🧠 PROCESSAMENTO DE RESPOSTA (SEM ATUALIZAÇÃO NO BANCO)
+// =============================
+async function buscarEProcessarResposta(conceitoId) {
+    // Busca todas as respostas cadastradas para este conceito
+    const { data: respostas } = await _supabase
+        .from("respostas")
+        .select("*")
+        .eq("conceito_id", conceitoId);
+
+    if (!respostas || respostas.length === 0) return null;
+
+    // A regra de pensamento é baseada na Frequência (Quantidade daquela resposta / Total de respostas daquele conceito)
+    const totalRespostasConceito = respostas.reduce((sum, r) => sum + r.quantidade, 0);
+
+    // Seleciona a resposta com base na lógica das Regras de Ouro
+    respostas.forEach(r => {
+        r.frequencia = r.quantidade / totalRespostasConceito;
+        // Classifica o tipo de pensamento em memória (sem gravar no banco)
+        if (r.frequencia >= 0.8) r.tipo = 'matematico';
+        else if (r.frequencia >= 0.4) r.tipo = 'humano';
+        else r.tipo = 'filosofico';
+    });
+
+    // Escolhe a resposta baseada nas regras de pensamento
+    let respostaEscolhida = escolherRespostaDominante(respostas);
+    
+    // Aplica o filtro de pensamento (Regra 19, etc.)
+    return aplicarRegrasDePensamento(respostaEscolhida);
+}
+
 </script>
 
 </body>
