@@ -179,248 +179,249 @@ function sortear(lista) {
     return lista[Math.floor(Math.random() * lista.length)];
 }
 
+// =========================================================
+// CONFIGURAÇÃO SUPABASE (Certifique-se de que já está no topo)
+// =========================================================
+// const _supabase = supabase.createClient('URL', 'KEY');
 
-// =============================
-// 🔤 NORMALIZAÇÃO FORTE
-// =============================
-function normalizarTexto(texto) {
+// 🎲 UTILIDADE DE SORTEIO (Mantida conforme solicitado)
+function sortear(lista) {
+    return lista[Math.floor(Math.random() * lista.length)];
+}
+
+// =========================================================
+// 🧠 ÔMEGA 7 - CORE ENGINE (REGRAS DE OURO V5)
+// =========================================================
+
+let modoAprender = false;
+let termoPendente = null;
+let ultimaPerguntaGerada = false; // Controle para evitar 2 perguntas seguidas
+
+// 1. NORMALIZAÇÃO ABSOLUTA (Regra 1 e 2)
+function normalizar(texto) {
     return texto
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Remove acentos
         .toLowerCase()
-        .normalize("NFD") // remove acento
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\w\s]/g, "") // remove pontuação
-        .replace(/\s+/g, "") // REMOVE TODOS ESPAÇOS
+        .replace(/[^\w]/g, "") // Remove TUDO que não for letra/número (incluindo espaços)
         .trim();
 }
 
-// =============================
-// 🔍 BUSCAR OU CRIAR CONCEITO
-// =============================
-async function buscarOuCriarConceito(textoOriginal) {
-
-    const termo_normalizado = normalizarTexto(textoOriginal);
-
-    // tenta buscar
-    let { data: existente } = await _supabase
-        .from("conceitos")
-        .select("*")
-        .eq("termo_normalizado", termo_normalizado)
-        .maybeSingle();
-
-    if (existente) {
-        return existente;
-    }
-
-    // se não existe → cria (UPSERT manual seguro)
-    const { data, error } = await _supabase
-        .from("conceitos")
-        .insert({
-            termo: textoOriginal,
-            termo_normalizado
-        })
-        .select()
-        .single();
-
-    if (error) {
-        // possível corrida → tenta buscar novamente
-        const { data: retry } = await _supabase
-            .from("conceitos")
-            .select("*")
-            .eq("termo_normalizado", termo_normalizado)
-            .single();
-
-        return retry;
-    }
-
-    return data;
+// 2. EXTRAIR ÚLTIMA PALAVRA (Regra 7 - Gancho)
+function extrairUltimaPalavra(texto) {
+    const palavras = texto.trim().split(/\s+/);
+    return palavras.length > 0 ? normalizar(palavras[palavras.length - 1]) : null;
 }
 
-// =============================
-// 📥 BUSCAR RESPOSTAS DO CONCEITO
-// =============================
-async function buscarRespostas(conceito_id) {
+// 3. FLUXO PRINCIPAL
+async function processarEntrada(inputUsuario) {
+    ultimaPerguntaGerada = false; // Reseta o controle no início do ciclo
 
-    const { data, error } = await _supabase
-        .from("respostas")
-        .select("*")
-        .eq("conceito_id", conceito_id);
-
-    if (error) {
-        console.error("Erro ao buscar respostas:", error);
-        return [];
-    }
-
-    return data;
-}
-
-// =============================
-// 💾 SALVAR RESPOSTA (SEM DUPLICAR)
-// =============================
-async function salvarResposta(conceito_id, textoOriginal) {
-
-    const texto_normalizado = normalizarTexto(textoOriginal);
-
-    // verifica se já existe
-    const { data: existente } = await _supabase
-        .from("respostas")
-        .select("*")
-        .eq("conceito_id", conceito_id)
-        .eq("texto_normalizado", texto_normalizado)
-        .maybeSingle();
-
-    if (existente) {
-        // soma +1
-        const novaQuantidade = parseFloat(existente.quantidade) + 1;
-
-        await _supabase
-            .from("respostas")
-            .update({ quantidade: novaQuantidade })
-            .eq("id", existente.id);
-
+    if (modoAprender) {
+        await gravarNovaResposta(termoPendente, inputUsuario);
         return;
     }
 
-    // cria nova resposta
-    await _supabase
-        .from("respostas")
-        .insert({
-            conceito_id,
-            texto: textoOriginal,
-            texto_normalizado,
+    const termoNorm = normalizar(inputUsuario);
+    
+    // Busca Conceito
+    const { data: conceito, error } = await _supabase
+        .from('conceitos')
+        .select('*')
+        .eq('termo_normalizado', termoNorm)
+        .single();
+
+    if (!conceito) {
+        // REGRA: SE NÃO EXISTE CONCEITO -> APRENDER
+        modoAprender = true;
+        termoPendente = inputUsuario; 
+        responder(sortear(VOCABULARIO.naoSabe));
+        return;
+    }
+
+    // REGRA: SE EXISTE CONCEITO -> DECIDIR FLUXO (80% Resposta / 10% Gancho / 10% Dúvida)
+    const r = Math.random();
+
+    if (r < 0.10) {
+        // 10% DUVIDA HUMANA
+        if (await dispararDuvidaHumana(conceito)) return;
+    } 
+    
+    if (r >= 0.10 && r < 0.20) {
+        // 10% GANCHO
+        if (await dispararGancho(inputUsuario)) return;
+    }
+
+    // 80% OU FALLBACK: RESPOSTA PADRÃO
+    await gerarRespostaPadrao(conceito);
+}
+
+// 4. GERADOR DE RESPOSTA (Regras 4 e 5)
+async function gerarRespostaPadrao(conceito) {
+    const { data: respostas } = await _supabase
+        .from('respostas')
+        .select('*')
+        .eq('conceito_id', conceito.id);
+
+    if (!respostas || respostas.length === 0) return;
+
+    // Ordenar por quantidade e pegar as dominantes
+    respostas.sort((a, b) => b.quantidade - a.quantidade);
+    const maxQtd = respostas[0].quantidade;
+    const dominantes = respostas.filter(res => res.quantidade === maxQtd);
+    
+    // Escolha Aleatória em caso de empate
+    const escolhida = sortear(dominantes);
+
+    let textoFinal = escolhida.texto;
+
+    // Lógica de Pensamento Filosófico (Regra 19)
+    if (escolhida.tipo_pensamento === 'filosofico') {
+        textoFinal += "?"; 
+        if (Math.random() < 0.4) {
+            textoFinal += " " + sortear(VOCABULARIO.filosofica);
+            ultimaPerguntaGerada = true; // Bloqueia perguntas sequenciais
+        }
+    }
+
+    responder(textoFinal);
+
+    // Soma quantidade no banco (Gatilho SQL cuidará da frequência)
+    await _supabase.from('respostas').update({ quantidade: escolhida.quantidade + 1 }).eq('id', escolhida.id);
+
+    // REGRA 8: Se não gerou pergunta filosófica, tenta pergunta pós-resposta
+    if (!ultimaPerguntaGerada) {
+        gerarPerguntaPosCiclo(conceito, escolhida);
+    }
+}
+
+// 5. PERGUNTAS PÓS-RESPOSTA (Regra 8 - 55/15/15/10/5)
+function gerarPerguntaPosCiclo(conceito, respostaObj) {
+    const r = Math.random();
+
+    if (r < 0.55) return; // 55% Não gera nada
+
+    let pergunta = "";
+    if (r < 0.70) { // 15% Confirmação
+        pergunta = `${conceito.termo} ${respostaObj.texto}?`;
+        responder(sortear(VOCABULARIO.confirmacao) + " " + pergunta);
+    } else if (r < 0.85) { // 15% Curiosidade
+        pergunta = `O que é ${Math.random() > 0.5 ? conceito.termo : respostaObj.texto}?`;
+        responder(sortear(VOCABULARIO.curiosidade) + " " + pergunta);
+    } else if (r < 0.95) { // 10% Silogismo (Teia)
+        // Implementação básica de chamada para teia (Silogismo)
+        responder("Isso me lembra outra coisa... será que tem ligação?"); 
+    } else { // 5% Aprendizado Passivo
+        responder(`Mas me diga, o que exatamente é ${conceito.termo}?`);
+    }
+    ultimaPerguntaGerada = true;
+}
+
+// 6. GRAVAÇÃO E APRENDIZADO
+async function gravarNovaResposta(termo, textoResposta) {
+    const termoNorm = normalizar(termo);
+    const respNorm = normalizar(textoResposta);
+
+    // Garante que o conceito existe ou recupera o ID
+    let { data: conceito } = await _supabase.from('conceitos').select('*').eq('termo_normalizado', termoNorm).single();
+    
+    if (!conceito) {
+        const { data: novoC } = await _supabase.from('conceitos').insert([{ termo: termo, termo_normalizado: termoNorm }]).select().single();
+        conceito = novoC;
+    }
+
+    // Busca se a resposta já existe para somar
+    const { data: existente } = await _supabase
+        .from('respostas')
+        .select('*')
+        .eq('conceito_id', conceito.id)
+        .eq('texto_normalizado', respNorm)
+        .single();
+
+    if (existente) {
+        await _supabase.from('respostas').update({ quantidade: existente.quantidade + 1 }).eq('id', existente.id);
+    } else {
+        await _supabase.from('respostas').insert([{
+            conceito_id: conceito.id,
+            texto: textoResposta,
+            texto_normalizado: respNorm,
             quantidade: 1
-        });
+        }]);
+    }
+
+    responder(sortear(VOCABULARIO.aprendeu));
+    modoAprender = false;
+    termoPendente = null;
 }
 
-// =============================
-// 🖥️ UI
-// =============================
-const chat = document.getElementById("chat");
-const input = document.getElementById("userInput");
-const btn = document.getElementById("btnEnviar");
+// 7. AUXILIARES: GANCHO E DÚVIDA
+async function dispararGancho(input) {
+    const ultima = extrairUltimaPalavra(input);
+    if (!ultima) return false;
 
-function addMsg(texto, classe) {
-    const div = document.createElement("div");
-    div.className = "msg " + classe;
-    div.textContent = texto;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    // Busca conceitos que terminam ou são essa palavra
+    const { data: ganchos } = await _supabase.from('conceitos').select('*').ilike('termo_normalizado', `%${ultima}`);
+    
+    if (ganchos && ganchos.length > 0) {
+        const alvo = sortear(ganchos);
+        responder(`${sortear(VOCABULARIO.gancho)} ${alvo.termo}?`);
+        ultimaPerguntaGerada = true;
+        return true;
+    }
+    return false;
 }
 
-// =============================
-// 🧠 PROCESSAMENTO PRINCIPAL (SEM 80/10/10)
-// =============================
-btn.onclick = enviar;
-input.addEventListener("keypress", e => {
+async function dispararDuvidaHumana(conceito) {
+    responder(`${sortear(VOCABULARIO.duvidahumana)} ${conceito.termo}?`);
+    ultimaPerguntaGerada = true;
+    return true;
+}
+
+// Interface com o Chat (Ajuste conforme seu HTML)
+function responder(texto) {
+    setTimeout(() => {
+        addMsg(texto, "ba"); // Função addMsg deve existir no seu index.html
+    }, 500);
+}
+
+// =========================================================
+// ⌨️ CONTROLE DE ENVIO (CONECTANDO O BOTÃO)
+// =========================================================
+
+async function enviar() {
+    const input = document.getElementById("userInput");
+
+    const texto = input.value.trim();
+
+    if (texto !== "") {
+        // 1. Exibe a mensagem do usuário no chat
+        addMsg(texto, "user"); 
+        
+        // 2. Limpa o input
+        input.value = ""; 
+        
+        // 3. Processa a lógica (conforme a engine que você configurou)
+        await processarEntrada(texto); 
+    }
+}
+
+// Escuta o clique no botão
+document.getElementById("btnEnviar").addEventListener("click", enviar);
+
+// Escuta a tecla Enter para facilitar o uso
+document.getElementById("userInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") enviar();
 });
 
-// =============================
-// 🧠 PROCESSAMENTO PRINCIPAL CORRIGIDO
-// =============================
-async function enviar() {
-    const texto = input.value.trim();
-    if (!texto) return;
-
-    addMsg(texto, "user");
-    input.value = "";
-
-    // 1. MODO APRENDER: O usuário está dando a definição para um termo que o Ômega7 não conhecia
-    if (modoAprender && termoPendente) {
-        // Grava a resposta para o conceito que estava pendente
-        await salvarResposta(termoPendente.id, texto);
-        
-        addMsg(sortear(VOCABULARIO.aprendeu), "ba");
-
-        // Regra de Ouro: Após aprender, chance de gerar pergunta (Ex: 15% confirmação, 15% curiosidade...)
-        gerarPerguntaPosResposta(termoPendente, texto);
-
-        // RESET para novo ciclo
-        modoAprender = false;
-        termoPendente = null;
-        return;
-    }
-
-    // 2. BUSCA CONCEITO: Normaliza e verifica se já existe no banco
-    const termo_normalizado = normalizarTexto(texto);
-    let { data: conceito } = await _supabase
-        .from("conceitos")
-        .select("*")
-        .eq("termo_normalizado", termo_normalizado)
-        .maybeSingle();
-
-    // Se não existe o conceito, cria ele agora
-    if (!conceito) {
-        const { data: novoConceito } = await _supabase
-            .from("conceitos")
-            .insert({ termo: texto, termo_normalizado: termo_normalizado })
-            .select()
-            .single();
-        conceito = novoConceito;
-    }
-
-    // 3. BUSCA RESPOSTAS para esse conceito
-    const { data: respostas } = await _supabase
-        .from("respostas")
-        .select("*")
-        .eq("conceito_id", conceito.id);
-
-    // 4. DECISÃO DE FLUXO
-    if (!respostas || respostas.length === 0) {
-        // NÃO EXISTE RESPOSTA: Entra em modo aprender
-        modoAprender = true;
-        termoPendente = conceito;
-        addMsg(sortear(VOCABULARIO.naoSabe), "ba");
-    } else {
-        // EXISTE RESPOSTA: Responde conforme o Tipo de Pensamento
-        let respostaEscolhida = escolherRespostaDominante(respostas);
-        
-        // Aplica lógica de pensamento (Matemático, Humano, Filosófico)
-        let textoFinal = aplicarTipoPensamento(respostaEscolhida);
-        
-        addMsg(textoFinal, "ba");
-
-        // Soma +1 na quantidade desta resposta (Regra: soma aritmeticamente)
-        await somarQuantidadeResposta(respostaEscolhida);
-
-        // 10% de chance de Dúvida Humana ou Gancho (Regra 6 e 7)
-        // Se não disparar, encerra ou gera pergunta pós-ciclo (Regra 8)
-        if (!checarDuvidaOuGancho(texto, respostaEscolhida)) {
-            gerarPerguntaPosResposta(conceito, respostaEscolhida.texto);
-        }
-    }
-}
-
-// Funções Auxiliares para cumprir as Regras de Ouro:
-
-async function somarQuantidadeResposta(res) {
-    const novaQtd = parseFloat(res.quantidade) + 1;
-    await _supabase.from("respostas").update({ quantidade: novaQtd }).eq("id", res.id);
-}
-
-function aplicarTipoPensamento(res) {
-    // Regra: 0.8+ Matemático, 0.4-0.79 Humano, <0.4 Filosófico
-    const freq = res.frequencia || 0.5; 
-    if (freq >= 0.8) return res.texto; // Matemático: Resposta única
-    if (freq < 0.4) {
-        // Filosófico: Responde com dúvida (?) e 40% de chance de pergunta extra
-        let txt = res.texto + "?";
-        if (Math.random() < 0.4) txt += " " + sortear(VOCABULARIO.filosofica);
-        return txt;
-    }
-    return res.texto; // Humano
-}
-
-function gerarPerguntaPosResposta(conceito, respostaTexto) {
-    const r = Math.random();
-    // 55% Não gera nada (encerra)
-    if (r < 0.55) return;
-    
-    // Regras de Geração de Perguntas (15% Confirmação, 15% Curiosidade, etc)
-    if (r < 0.70) { 
-        addMsg(`${conceito.termo} ${respostaTexto}?`, "ba"); // Confirmação
-    } else if (r < 0.85) {
-        addMsg(`${sortear(VOCABULARIO.curiosidade)} ${conceito.termo}?`, "ba"); // Curiosidade
-    }
+// Função para garantir que as mensagens apareçam no chat
+function addMsg(texto, tipo) {
+    const chat = document.getElementById("chat");
+    const div = document.createElement("div");
+    div.className = `msg ${tipo}`;
+    div.innerText = texto;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight; // Rola automaticamente para o fim
 }
 
 </script>
