@@ -88,6 +88,25 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// 🧠 ESTADOS DO SISTEMA
+
+// ativa quando conceito não tem resposta 
+let modoAprender = false;
+
+// termoPendente → guarda o conceito aguardando definição
+let termoPendente = null;
+
+// conceitoAnteriorId → usado EXCLUSIVAMENTE para teia
+let conceitoAnteriorId = null;
+
+// ultimoConceito → contexto semântico (apoio futuro / estabilidade)
+let ultimoConceito = null;
+
+// jaPerguntou → garante: nunca 2 perguntas seguidas 
+
+//pergunta sempre depois da resposta
+let jaPerguntou = false;
+
 // --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) ---
     const VOCABULARIO = {
         naoSabe: [
@@ -171,9 +190,6 @@ function sortear(lista) {
 // 🧠 ÔMEGA 7 - CORE ENGINE (REGRAS DE OURO V5)
 // =========================================================
 
-let modoAprender = false;
-let termoPendente = null;
-let ultimaPerguntaGerada = false; // Controle para evitar 2 perguntas seguidas
 
 // 1. NORMALIZAÇÃO ABSOLUTA (Regra 1 e 2)
 function normalizar(texto) {
