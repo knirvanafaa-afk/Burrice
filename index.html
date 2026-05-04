@@ -407,10 +407,13 @@ async function enviar() {
 }
 
 // Escuta o clique no botão
-document.getElementById("btnEnviar").addEventListener("click", enviar);
+const input = document.getElementById("userInput");
+const btn = document.getElementById("btnEnviar");
+
+btn.onclick = enviar;
 
 // Escuta a tecla Enter para facilitar o uso
-document.getElementById("userInput").addEventListener("keydown", (e) => {
+input.addEventListener("keypress", e => {
     if (e.key === "Enter") enviar();
 });
 
