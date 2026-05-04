@@ -88,26 +88,6 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYmJ4Ymxwbm5xcGJoaHJ6ZXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTU2NTgsImV4cCI6MjA5MTY5MTY1OH0.ziT_pvO7OYfQEXqfnQ7bXCWjTnNg6US1gMjZVNwkig4';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 🧠 ESTADOS DO SISTEMA
-
-// ativa quando conceito não tem resposta 
-let modoAprender = false;
-
-// termoPendente → guarda o conceito aguardando definição
-let termoPendente = null;
-
-// conceitoAnteriorId → usado EXCLUSIVAMENTE para teia
-let conceitoAnteriorId = null;
-
-// ultimoConceito → contexto semântico (apoio futuro / estabilidade)
-let ultimoConceito = null;
-
-// jaPerguntou → garante: nunca 2 perguntas seguidas 
-
-//pergunta sempre depois da resposta
-let jaPerguntou = false;
-
-
 // --- BANCO DE 100 SINÔNIMOS (O VOCABULÁRIO COMPLETO DO ÔMEGA 7) ---
     const VOCABULARIO = {
         naoSabe: [
@@ -179,8 +159,6 @@ function sortear(lista) {
     return lista[Math.floor(Math.random() * lista.length)];
 }
 
-// =========================================================
-// CONFIGURAÇÃO SUPABASE (Certifique-se de que já está no topo)
 // =========================================================
 // const _supabase = supabase.createClient('URL', 'KEY');
 
